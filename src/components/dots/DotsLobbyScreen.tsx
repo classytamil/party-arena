@@ -80,7 +80,7 @@ export const DotsLobbyScreen: React.FC<DotsLobbyScreenProps> = ({
   const canStart = player.isHost && room.players.length >= 2 && allHumansReady;
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-4 py-6 sm:py-10 flex flex-col items-center">
+    <div className="w-full max-w-4xl mx-auto px-4 py-6 sm:py-10 flex flex-col items-center select-none touch-manipulation">
       {/* Top Bar with Navigation and Sound */}
       <div className="w-full flex items-center justify-between mb-6">
         <button

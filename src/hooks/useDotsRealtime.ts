@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { DotsRoom, DotsPlayer, DotsGridSize } from '../types/dots';
+import { checkNewCompletedBoxes } from '../utils/dotsLogic';
 import {
   playLineDrawSound,
   playBoxClaimSound,
@@ -72,7 +73,7 @@ export function useDotsRealtime() {
 
     let delayMs: number | null = null;
     if (activePlayer.isBot) {
-      delayMs = 900;
+      delayMs = 800;
     } else if (room.turnDeadline && room.timerSeconds > 0) {
       delayMs = Math.max(250, room.turnDeadline - Date.now() + 150);
     }
@@ -356,17 +357,104 @@ export function useDotsRealtime() {
       }
       if (room.lines[lineId]) return;
 
-      setRoom((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          lines: {
-            ...prev.lines,
-            [lineId]: player.id,
-          },
-          lastDrawnLineId: lineId,
+      // 1. Calculate completed boxes optimistically
+      const newBoxes = checkNewCompletedBoxes(lineId, room.lines, room.gridSize);
+      const totalBoxes = (room.gridSize - 1) * (room.gridSize - 1);
+      const currentBoxesCount = Object.keys(room.boxes).length;
+      const nextBoxesCount = currentBoxesCount + newBoxes.length;
+
+      // 2. Play sound immediately with zero network latency
+      if (newBoxes.length >= 2) {
+        playComboClaimSound();
+      } else if (newBoxes.length === 1) {
+        playBoxClaimSound();
+      } else {
+        playLineDrawSound();
+      }
+
+      // 3. Keep refs updated to prevent redundant sound playback on server sync
+      lastLineRef.current = lineId;
+      lastBoxesCountRef.current = nextBoxesCount;
+
+      // 4. Compute next player turn and boxes map
+      const nextTurnIndex =
+        newBoxes.length > 0
+          ? room.turnIndex
+          : (room.turnIndex + 1) % room.players.length;
+      const nextTurnPlayerId =
+        newBoxes.length > 0 ? player.id : room.players[nextTurnIndex]?.id || player.id;
+
+      const newBoxesRecord: Record<string, {
+        row: number;
+        col: number;
+        ownerId: string;
+        ownerName: string;
+        ownerColorIndex: number;
+        completedMoveIndex: number;
+      }> = {};
+
+      for (const b of newBoxes) {
+        newBoxesRecord[`${b.row}-${b.col}`] = {
+          row: b.row,
+          col: b.col,
+          ownerId: player.id,
+          ownerName: player.name,
+          ownerColorIndex: player.colorIndex,
+          completedMoveIndex: room.moves.length + 1,
         };
-      });
+      }
+
+      const updatedPlayers = room.players.map((p) =>
+        p.id === player.id ? { ...p, score: p.score + newBoxes.length } : p
+      );
+      const updatedPlayer = updatedPlayers.find((p) => p.id === player.id) || player;
+
+      const isGameOver = nextBoxesCount >= totalBoxes;
+      let winners: DotsPlayer[] | undefined = undefined;
+      let isTie = false;
+      if (isGameOver) {
+        const maxScore = Math.max(...updatedPlayers.map((p) => p.score));
+        winners = updatedPlayers.filter((p) => p.score === maxScore);
+        isTie = winners.length > 1;
+        playVictorySound();
+      }
+
+      const optimisticRoom: DotsRoom = {
+        ...room,
+        lines: {
+          ...room.lines,
+          [lineId]: player.id,
+        },
+        boxes: {
+          ...room.boxes,
+          ...newBoxesRecord,
+        },
+        players: updatedPlayers,
+        currentTurnPlayerId: nextTurnPlayerId,
+        turnIndex: nextTurnIndex,
+        comboActive: newBoxes.length > 0,
+        lastDrawnLineId: lineId,
+        lastCompletedBoxes: newBoxes,
+        status: isGameOver ? 'COMPLETED' : room.status,
+        winners: winners || room.winners,
+        isTie: isGameOver ? isTie : room.isTie,
+        moves: [
+          ...room.moves,
+          {
+            moveIndex: room.moves.length + 1,
+            playerId: player.id,
+            playerName: player.name,
+            playerColorIndex: player.colorIndex,
+            lineId,
+            boxesCompleted: newBoxes.length,
+            timestamp: Date.now(),
+          },
+        ],
+      };
+
+      // Apply optimistic update simultaneously to room and player state
+      setRoom(optimisticRoom);
+      setPlayer(updatedPlayer);
 
       try {
         const res = await fetch(`/api/dots/rooms/${room.code}/move`, {

@@ -112,7 +112,7 @@ export const PaperGunVictoryModal: React.FC<PaperGunVictoryModalProps> = ({
               playClickSound();
               onRematch();
             }}
-            className="w-full py-3.5 px-6 rounded-2xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-black text-sm tracking-wide shadow-md shadow-blue-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full py-3.5 px-6 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-black text-sm tracking-wide shadow-md shadow-blue-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer touch-manipulation active:scale-95 duration-75"
           >
             <RotateCcw className="w-4 h-4" />
             <span>Play Again (Rematch)</span>
@@ -125,7 +125,7 @@ export const PaperGunVictoryModal: React.FC<PaperGunVictoryModalProps> = ({
               playClickSound();
               onLeaveRoom();
             }}
-            className="w-full py-3 px-6 rounded-2xl bg-slate-100 hover:bg-slate-200 active:scale-98 text-slate-700 font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full py-3 px-6 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer touch-manipulation active:scale-95 duration-75"
           >
             <Home className="w-3.5 h-3.5 text-slate-500" />
             <span>Return to Games Hub</span>

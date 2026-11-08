@@ -3,7 +3,14 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { PaperGunRoom, PaperGunPlayer, ActionChoice, PaperGunNumber } from '../types/paperGun';
+import {
+  PaperGunRoom,
+  PaperGunPlayer,
+  ActionChoice,
+  PaperGunNumber,
+  DevelopmentStage,
+} from '../types/paperGun';
+import { syncPlayerWeaponSummary } from '../utils/paperGunLogic';
 import {
   playJoinRoomSound,
   playPageFlipSound,
@@ -103,7 +110,7 @@ export function usePaperGunRealtime() {
       } catch {
         // Next poll or broadcast will retry if needed
       }
-    }, 900);
+    }, 800);
 
     return () => clearTimeout(timer);
   }, [
@@ -318,6 +325,69 @@ export function usePaperGunRealtime() {
         return;
       }
       setError(null);
+
+      // Instant optimistic feedback based on action
+      if (actionChoice === 'set_shield' && targetCharacterNumber) {
+        setPlayer((prev) => (prev ? { ...prev, shieldedCharacter: targetCharacterNumber } : prev));
+        setRoom((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            players: prev.players.map((p) =>
+              p.id === player.id ? { ...p, shieldedCharacter: targetCharacterNumber } : p
+            ),
+          };
+        });
+      } else if (actionChoice === 'pick_number' && targetCharacterNumber) {
+        playPencilDrawSound();
+        const opponent = room.players.find((p) => p.id !== player.id);
+        const curChar = player.characters[targetCharacterNumber];
+        const nextStage = Math.min(9, (curChar?.stage || 0) + 1) as DevelopmentStage;
+        const updatedChar = {
+          ...curChar,
+          stage: nextStage,
+          parts: {
+            ...curChar.parts,
+            body: nextStage >= 1,
+            ears: nextStage >= 2,
+            hands: nextStage >= 3,
+            legs: nextStage >= 4,
+            hasGun: nextStage >= 5,
+            bullets: nextStage <= 5 ? 0 : nextStage === 6 ? 1 : nextStage === 7 ? 2 : 3,
+            hasTrigger: nextStage >= 9,
+          },
+        };
+        const updatedCharacters = {
+          ...player.characters,
+          [targetCharacterNumber]: updatedChar,
+        };
+        const updatedPlayer: PaperGunPlayer = {
+          ...player,
+          characters: updatedCharacters,
+        };
+        syncPlayerWeaponSummary(updatedPlayer);
+
+        const willShoot = nextStage === 9;
+        const nextTurnPlayerId = willShoot ? player.id : (opponent?.id || player.id);
+
+        setPlayer(updatedPlayer);
+        setRoom((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            currentRoll: targetCharacterNumber,
+            drawnChoices: null,
+            pendingShotFromCharacter: willShoot ? targetCharacterNumber : null,
+            currentTurnPlayerId: nextTurnPlayerId,
+            players: prev.players.map((p) => (p.id === player.id ? updatedPlayer : p)),
+          };
+        });
+      } else if (actionChoice === 'shoot' && targetCharacterNumber) {
+        playGunshotSound();
+      } else if (actionChoice === 'character') {
+        playPageFlipSound();
+      }
+
       try {
         const res = await fetch(`/api/papergun/rooms/${room.code}/action`, {
           method: 'POST',
@@ -342,6 +412,23 @@ export function usePaperGunRealtime() {
   const passTurn = useCallback(async () => {
     if (!room || !player || room.status !== 'PLAYING') return;
     if (room.currentTurnPlayerId !== player.id) return;
+
+    // Optimistic turn pass to eliminate perceived lag
+    const opponent = room.players.find((p) => p.id !== player.id);
+    if (opponent) {
+      setRoom((prev) =>
+        prev
+          ? {
+              ...prev,
+              currentTurnPlayerId: opponent.id,
+              drawnChoices: null,
+              currentRoll: null,
+              turnAttempt: 1,
+            }
+          : prev
+      );
+    }
+
     try {
       const res = await fetch(`/api/papergun/rooms/${room.code}/pass`, {
         method: 'POST',

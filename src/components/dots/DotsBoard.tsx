@@ -307,7 +307,7 @@ export const DotsBoard: React.FC<DotsBoardProps> = ({
       : false;
 
   return (
-    <div className="w-full flex flex-col justify-center items-center py-2 select-none">
+    <div className="w-full flex flex-col justify-center items-center py-2 select-none touch-manipulation">
       {/* Visual Gesture Clue */}
       {isMyTurn && (
         <div className="mb-2 text-xs font-semibold text-blue-600 bg-blue-50/90 border border-blue-200/70 px-3.5 py-1 rounded-full shadow-xs flex items-center gap-1.5">

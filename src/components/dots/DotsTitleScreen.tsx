@@ -111,7 +111,7 @@ export const DotsTitleScreen: React.FC<DotsTitleScreenProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col justify-between p-4 sm:p-6 select-none">
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col justify-between p-4 sm:p-6 select-none touch-manipulation">
       {/* Simple Header */}
       <header className="flex items-center justify-between max-w-sm mx-auto w-full pt-1">
         <button

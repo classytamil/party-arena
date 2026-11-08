@@ -86,7 +86,7 @@ export const DotsGameScreen: React.FC<DotsGameScreenProps> = ({
                   onLeaveRoom();
                 }
               }}
-              className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+              className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all touch-manipulation active:scale-95 duration-75 cursor-pointer"
               title="Leave Room"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -114,7 +114,7 @@ export const DotsGameScreen: React.FC<DotsGameScreenProps> = ({
                 playClickSound();
                 setShowHistory(!showHistory);
               }}
-              className={`p-2.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs ${
+              className={`p-2.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs touch-manipulation active:scale-95 duration-75 cursor-pointer ${
                 showHistory
                   ? 'border-blue-500 bg-blue-50 text-blue-700'
                   : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600'
@@ -127,7 +127,7 @@ export const DotsGameScreen: React.FC<DotsGameScreenProps> = ({
 
             <button
               onClick={handleToggleMute}
-              className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-all shadow-xs"
+              className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-all shadow-xs touch-manipulation active:scale-95 duration-75 cursor-pointer"
               title={isMuted ? 'Unmute Sound' : 'Mute Sound'}
             >
               {isMuted ? <VolumeX className="w-4 h-4 text-rose-500" /> : <Volume2 className="w-4 h-4" />}
@@ -266,7 +266,7 @@ export const DotsGameScreen: React.FC<DotsGameScreenProps> = ({
               </div>
               <button
                 onClick={() => setShowHistory(false)}
-                className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-500"
+                className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-500 touch-manipulation active:scale-95 duration-75 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>

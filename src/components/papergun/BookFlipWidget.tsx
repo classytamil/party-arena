@@ -124,7 +124,7 @@ export const BookFlipWidget: React.FC<BookFlipWidgetProps> = ({
               playClickSound();
               onChangeMode('character');
             }}
-            className={`py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 border transition-all cursor-pointer ${
+            className={`py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 border transition-all cursor-pointer touch-manipulation active:scale-95 duration-75 ${
               selectedMode === 'character'
                 ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
                 : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
@@ -141,7 +141,7 @@ export const BookFlipWidget: React.FC<BookFlipWidgetProps> = ({
               playClickSound();
               onChangeMode('weapon');
             }}
-            className={`py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 border transition-all cursor-pointer ${
+            className={`py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 border transition-all cursor-pointer touch-manipulation active:scale-95 duration-75 ${
               selectedMode === 'weapon'
                 ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
                 : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
@@ -159,7 +159,7 @@ export const BookFlipWidget: React.FC<BookFlipWidgetProps> = ({
               playClickSound();
               onChangeMode('shoot');
             }}
-            className={`py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 border transition-all ${
+            className={`py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 border transition-all touch-manipulation active:scale-95 duration-75 ${
               selectedMode === 'shoot'
                 ? 'bg-rose-600 text-white border-rose-600 shadow-xs cursor-pointer'
                 : weaponReadyToShoot
@@ -180,7 +180,7 @@ export const BookFlipWidget: React.FC<BookFlipWidgetProps> = ({
               playClickSound();
               onChangeMode('reload');
             }}
-            className={`py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 border transition-all ${
+            className={`py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 border transition-all touch-manipulation active:scale-95 duration-75 ${
               selectedMode === 'reload'
                 ? 'bg-amber-600 text-white border-amber-600 shadow-xs cursor-pointer'
                 : canReload
@@ -258,7 +258,7 @@ export const BookFlipWidget: React.FC<BookFlipWidgetProps> = ({
               type="button"
               disabled={isLoading || (selectedMode === 'shoot' && !selectedTargetNumber)}
               onClick={handleAction}
-              className={`flex-1 w-full py-3.5 px-6 rounded-2xl font-black text-sm tracking-wide text-white transition-all shadow-md active:scale-98 flex items-center justify-center gap-2 cursor-pointer ${
+              className={`flex-1 w-full py-3.5 px-6 rounded-2xl font-black text-sm tracking-wide text-white transition-all shadow-md touch-manipulation active:scale-[0.98] duration-75 flex items-center justify-center gap-2 cursor-pointer ${
                 selectedMode === 'shoot'
                   ? selectedTargetNumber
                     ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/25'
@@ -314,7 +314,7 @@ export const BookFlipWidget: React.FC<BookFlipWidgetProps> = ({
                   onPassTurn();
                 }}
                 disabled={isLoading}
-                className="w-full sm:w-auto py-3 px-4 rounded-2xl font-bold text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-all cursor-pointer flex items-center justify-center gap-1"
+                className="w-full sm:w-auto py-3 px-4 rounded-2xl font-bold text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-all touch-manipulation active:scale-95 duration-75 cursor-pointer flex items-center justify-center gap-1"
               >
                 <span>Pass Turn</span>
                 <ArrowRight className="w-3.5 h-3.5" />

@@ -51,7 +51,7 @@ export const PaperGunLobbyScreen: React.FC<PaperGunLobbyScreenProps> = ({
 
   return (
     <div
-      className="w-full min-h-screen bg-[#fffdf9] text-slate-900 flex flex-col justify-between select-none"
+      className="w-full min-h-screen bg-[#fffdf9] text-slate-900 flex flex-col justify-between select-none touch-manipulation"
       style={{
         backgroundImage: `
           linear-gradient(to right, rgba(239, 68, 68, 0.22) 2px, transparent 2px),

@@ -106,7 +106,7 @@ export const PaperGunGameScreen: React.FC<PaperGunGameScreenProps> = ({
 
   return (
     <div
-      className="w-full min-h-screen bg-[#f4f1ea] text-slate-900 flex flex-col items-center justify-between py-2 sm:py-5 px-2 sm:px-4 select-none"
+      className="w-full min-h-screen bg-[#f4f1ea] text-slate-900 flex flex-col items-center justify-between py-2 sm:py-5 px-2 sm:px-4 select-none touch-manipulation"
       style={{
         backgroundImage: `
           linear-gradient(to right, rgba(59, 130, 246, 0.08) 1px, transparent 1px),
@@ -123,7 +123,7 @@ export const PaperGunGameScreen: React.FC<PaperGunGameScreenProps> = ({
             playClickSound();
             onLeaveRoom();
           }}
-          className="flex items-center gap-1.5 text-xs font-black text-slate-800 hover:bg-amber-100 bg-white px-3 py-1.5 rounded-xl border-2 border-slate-900 shadow-[2px_2px_0px_#0f172a] active:translate-y-0.5 transition-all cursor-pointer"
+          className="flex items-center gap-1.5 text-xs font-black text-slate-800 hover:bg-amber-100 bg-white px-3 py-1.5 rounded-xl border-2 border-slate-900 shadow-[2px_2px_0px_#0f172a] touch-manipulation active:scale-95 duration-75 transition-all cursor-pointer"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Leave</span>
@@ -168,7 +168,7 @@ export const PaperGunGameScreen: React.FC<PaperGunGameScreenProps> = ({
           <button
             type="button"
             onClick={handleToggleMute}
-            className="p-1.5 rounded-xl bg-white border-2 border-slate-900 text-slate-800 hover:bg-amber-50 shadow-[2px_2px_0px_#0f172a] cursor-pointer"
+            className="p-1.5 rounded-xl bg-white border-2 border-slate-900 text-slate-800 hover:bg-amber-50 shadow-[2px_2px_0px_#0f172a] touch-manipulation active:scale-95 duration-75 cursor-pointer"
             title={isMuted ? 'Unmute Sound' : 'Mute Sound'}
           >
             {isMuted ? <VolumeX className="w-4 h-4 text-rose-600" /> : <Volume2 className="w-4 h-4" />}
@@ -312,7 +312,7 @@ export const PaperGunGameScreen: React.FC<PaperGunGameScreenProps> = ({
                 playClickSound();
                 onPassTurn();
               }}
-              className="mb-2.5 px-3 py-1 rounded-xl border-2 border-slate-900 bg-white hover:bg-slate-100 text-slate-800 text-xs font-black shadow-[2px_2px_0px_#0f172a] cursor-pointer"
+              className="mb-2.5 px-3 py-1 rounded-xl border-2 border-slate-900 bg-white hover:bg-slate-100 text-slate-800 text-xs font-black shadow-[2px_2px_0px_#0f172a] touch-manipulation active:scale-95 duration-75 cursor-pointer"
             >
               Pass Turn
             </button>
@@ -349,10 +349,10 @@ export const PaperGunGameScreen: React.FC<PaperGunGameScreenProps> = ({
                         playClickSound();
                         handlePickNumber(num);
                       }}
-                      className={`px-4 py-2.5 rounded-2xl border-3 border-slate-900 flex items-center gap-2.5 transition-all ${
+                      className={`px-4 py-2.5 rounded-2xl border-3 border-slate-900 flex items-center gap-2.5 transition-all touch-manipulation duration-75 ${
                         isDead
                           ? 'bg-slate-100 text-slate-400 border-slate-400 opacity-60 cursor-not-allowed'
-                          : 'bg-blue-500 hover:bg-blue-400 text-white shadow-[4px_4px_0px_#0f172a] hover:-translate-y-0.5 active:translate-y-0.5 cursor-pointer'
+                          : 'bg-blue-500 hover:bg-blue-400 text-white shadow-[4px_4px_0px_#0f172a] hover:-translate-y-0.5 active:scale-95 active:shadow-[1px_1px_0px_#0f172a] cursor-pointer'
                       }`}
                     >
                       <span className="w-9 h-9 rounded-xl bg-white text-slate-950 border-2 border-slate-900 flex items-center justify-center font-mono font-black text-xl shadow-[1px_1px_0px_#0f172a]">
@@ -377,9 +377,9 @@ export const PaperGunGameScreen: React.FC<PaperGunGameScreenProps> = ({
               type="button"
               disabled={!isMyTurn || actionLoading}
               onClick={handleNumberDiceClick}
-              className={`group relative w-56 sm:w-64 py-3 px-5 rounded-2xl border-3 border-slate-900 flex flex-col items-center justify-center transition-all ${
+              className={`group relative w-56 sm:w-64 py-3 px-5 rounded-2xl border-3 border-slate-900 flex flex-col items-center justify-center transition-all touch-manipulation duration-75 ${
                 isMyTurn
-                  ? 'bg-amber-300 hover:bg-amber-200 shadow-[4px_4px_0px_#0f172a] hover:-translate-y-0.5 active:translate-y-0.5 cursor-pointer'
+                  ? 'bg-amber-300 hover:bg-amber-200 shadow-[4px_4px_0px_#0f172a] hover:-translate-y-0.5 active:scale-95 active:shadow-[1px_1px_0px_#0f172a] cursor-pointer'
                   : 'bg-slate-100 text-slate-400 border-slate-400 cursor-not-allowed'
               }`}
             >

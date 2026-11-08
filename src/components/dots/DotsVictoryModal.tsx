@@ -129,7 +129,7 @@ export const DotsVictoryModal: React.FC<DotsVictoryModalProps> = ({
               playClickSound();
               onLeaveRoom();
             }}
-            className="w-full sm:flex-1 py-3.5 px-4 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-xs"
+            className="w-full sm:flex-1 py-3.5 px-4 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-xs touch-manipulation active:scale-95 duration-75 cursor-pointer"
           >
             <Home className="w-4 h-4 text-slate-500" />
             <span>Return to Hub</span>
@@ -141,7 +141,7 @@ export const DotsVictoryModal: React.FC<DotsVictoryModalProps> = ({
               playClickSound();
               onRematch();
             }}
-            className="w-full sm:flex-1 py-3.5 px-4 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-500/25 active:scale-95"
+            className="w-full sm:flex-1 py-3.5 px-4 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-500/25 touch-manipulation active:scale-95 duration-75 cursor-pointer"
           >
             <RotateCcw className="w-4 h-4" />
             <span>{isLoading ? 'Resetting...' : 'Play Again'}</span>

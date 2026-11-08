@@ -213,13 +213,15 @@ export const PaperSketchpad: React.FC<PaperSketchpadProps> = ({
                   onPickChoice(charNum);
                 }
               }}
-              className={`group relative w-full rounded-xl border-2 p-2 sm:px-3 sm:py-2 flex flex-col sm:flex-row items-center justify-between gap-2 transition-all duration-300 ${
+              className={`group relative w-full rounded-xl border-2 p-2 sm:px-3 sm:py-2 flex flex-col sm:flex-row items-center justify-between gap-2 transition-all duration-150 touch-manipulation ${
+                canBeTargeted || canBePicked ? 'cursor-pointer active:scale-[0.98]' : ''
+              } ${
                 char.isEliminated
                   ? 'bg-rose-50/40 border-dashed border-rose-300/80 opacity-65'
                   : canBeTargeted
-                  ? 'cursor-pointer bg-rose-50/95 border-rose-600 shadow-[3px_3px_0px_#e11d48] hover:-translate-y-0.5 ring-2 ring-rose-400/50'
+                  ? 'bg-rose-50/95 border-rose-600 shadow-[3px_3px_0px_#e11d48] hover:-translate-y-0.5 ring-2 ring-rose-400/50'
                   : canBePicked
-                  ? 'cursor-pointer bg-blue-50/95 border-blue-600 shadow-[3px_3px_0px_#2563eb] hover:-translate-y-0.5 ring-2 ring-blue-400/60'
+                  ? 'bg-blue-50/95 border-blue-600 shadow-[3px_3px_0px_#2563eb] hover:-translate-y-0.5 ring-2 ring-blue-400/60'
                   : isPendingShooter
                   ? 'bg-amber-100 border-rose-600 shadow-[3px_3px_0px_#e11d48] ring-2 ring-amber-400'
                   : isShieldedByMe
@@ -299,7 +301,7 @@ export const PaperSketchpad: React.FC<PaperSketchpadProps> = ({
                           ? 'Secret Shield Active! Blocks 1 opponent shot.'
                           : 'Move your Secret Shield to this character'
                       }
-                      className={`ml-auto sm:ml-1 px-1.5 py-0.5 rounded-lg border text-[9px] font-black flex items-center gap-0.5 transition-all cursor-pointer ${
+                      className={`ml-auto sm:ml-1 px-1.5 py-0.5 rounded-lg border text-[9px] font-black flex items-center gap-0.5 transition-all cursor-pointer touch-manipulation active:scale-90 duration-75 ${
                         isShieldedByMe
                           ? 'bg-sky-600 text-white border-slate-900 shadow-[1px_1px_0px_#0f172a]'
                           : 'bg-white/90 hover:bg-sky-50 text-slate-500 hover:text-sky-700 border-slate-300'
