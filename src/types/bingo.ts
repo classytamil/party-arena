@@ -15,6 +15,8 @@ export interface Player {
   isReady: boolean;
   isBot: boolean;
   connected: boolean;
+  isIdle?: boolean; // True if player missed turns (AFK)
+  missedTurns?: number; // Consecutive missed turn count
 }
 
 export interface CallLogEntry {
@@ -38,6 +40,9 @@ export interface Room {
   autoDrawInterval: number; // 0 for manual, or milliseconds (e.g. 4000)
   currentTurnPlayerId: string; // ID of player whose turn it is to pick a number
   turnIndex: number; // Index in players array
+  startTurnIndex?: number; // Round-robin starter index across matches
+  turnDeadline?: number | null; // Timestamp when current turn expires (20s)
+  turnTimerSeconds?: number; // 20s
   lastCallerName: string | null; // Name of player who called the last number
   createdAt: number;
 }

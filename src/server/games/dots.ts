@@ -22,6 +22,31 @@ const GAME = 'dots' as const;
 
 export const DOTS_BOT_DELAY_MS = 850;
 const BOT_DELAY_TOLERANCE_MS = 250;
+export const DOTS_DEFAULT_TURN_TIMEOUT_SECONDS = 20;
+
+export function getNextActiveDotsTurnIndex(players: { isIdle?: boolean }[], currentIndex: number): number {
+  if (players.length <= 1) return 0;
+  for (let i = 1; i <= players.length; i++) {
+    const candidateIdx = (currentIndex + i) % players.length;
+    if (!players[candidateIdx]?.isIdle) {
+      return candidateIdx;
+    }
+  }
+  return (currentIndex + 1) % players.length;
+}
+
+function getNextStartingDotsTurnIndex(room: { players: { isIdle?: boolean }[]; startTurnIndex?: number }): number {
+  if (room.players.length === 0) return 0;
+  const currentStart = typeof room.startTurnIndex === 'number' ? room.startTurnIndex : -1;
+  const target = (currentStart + 1) % room.players.length;
+  for (let i = 0; i < room.players.length; i++) {
+    const candidate = (target + i) % room.players.length;
+    if (!room.players[candidate]?.isIdle) {
+      return candidate;
+    }
+  }
+  return target;
+}
 
 const DOTS_BOT_NAMES = ['Gizmo Bot', 'Circuit Sam', 'Pixel Bot', 'Sparky Bot', 'Byte Fox', 'Robo Owl'];
 const DOTS_BOT_AVATARS = ['owl', 'alien', 'panda', 'cat', 'tiger', 'lion'];
@@ -40,8 +65,9 @@ function view(rec: RoomRecord<DotsRoom>, extra: Record<string, unknown> = {}) {
 }
 
 function refreshTurnDeadline(room: DotsRoom) {
-  if (room.status === 'PLAYING' && room.timerSeconds > 0) {
-    room.turnDeadline = Date.now() + room.timerSeconds * 1000;
+  if (room.status === 'PLAYING') {
+    const seconds = room.timerSeconds > 0 ? room.timerSeconds : DOTS_DEFAULT_TURN_TIMEOUT_SECONDS;
+    room.turnDeadline = Date.now() + seconds * 1000;
   } else {
     room.turnDeadline = null;
   }
@@ -71,6 +97,10 @@ function executeDotsMove(
   if (!player) {
     return { success: false, error: 'Player not found in room' };
   }
+
+  // Clear idle & missed turns when player takes action
+  player.isIdle = false;
+  player.missedTurns = 0;
 
   // Draw the line
   room.lines[lineId] = playerId;
@@ -107,8 +137,8 @@ function executeDotsMove(
       room.isTie = room.winners.length > 1;
     }
   } else {
-    // No box completed: turn passes to next player
-    room.turnIndex = (room.turnIndex + 1) % room.players.length;
+    // No box completed: turn passes to next active player (skipping idle players)
+    room.turnIndex = getNextActiveDotsTurnIndex(room.players, room.turnIndex);
     room.currentTurnPlayerId = room.players[room.turnIndex].id;
     room.comboActive = false;
   }
@@ -339,10 +369,11 @@ export async function dotsAction(rawCode: string, action: string, body: Record<s
           throw new GameError(400, 'All players must be ready before starting');
         }
 
-        const firstTurnIdx = Math.floor(Math.random() * room.players.length);
+        const startIdx = getNextStartingDotsTurnIndex(room);
         room.status = 'PLAYING';
-        room.turnIndex = firstTurnIdx;
-        room.currentTurnPlayerId = room.players[firstTurnIdx].id;
+        room.startTurnIndex = startIdx;
+        room.turnIndex = startIdx;
+        room.currentTurnPlayerId = room.players[startIdx].id;
         room.lines = {};
         room.boxes = {};
         room.moves = [];
@@ -352,7 +383,11 @@ export async function dotsAction(rawCode: string, action: string, body: Record<s
         room.lastDrawnLineId = null;
         room.lastCompletedBoxes = [];
 
-        for (const p of room.players) p.score = 0;
+        for (const p of room.players) {
+          p.score = 0;
+          p.isIdle = false;
+          p.missedTurns = 0;
+        }
         refreshTurnDeadline(room);
       });
       return json(view(record!));
@@ -368,10 +403,11 @@ export async function dotsAction(rawCode: string, action: string, body: Record<s
 
     case 'rematch': {
       const { record } = await mutateRoom<DotsRoom>(code, GAME, (room) => {
-        const firstTurnIdx = Math.floor(Math.random() * room.players.length);
+        const startIdx = getNextStartingDotsTurnIndex(room);
         room.status = 'PLAYING';
-        room.turnIndex = firstTurnIdx;
-        room.currentTurnPlayerId = room.players[firstTurnIdx].id;
+        room.startTurnIndex = startIdx;
+        room.turnIndex = startIdx;
+        room.currentTurnPlayerId = room.players[startIdx].id;
         room.lines = {};
         room.boxes = {};
         room.moves = [];
@@ -381,7 +417,11 @@ export async function dotsAction(rawCode: string, action: string, body: Record<s
         room.lastDrawnLineId = null;
         room.lastCompletedBoxes = [];
 
-        for (const p of room.players) p.score = 0;
+        for (const p of room.players) {
+          p.score = 0;
+          p.isIdle = false;
+          p.missedTurns = 0;
+        }
         refreshTurnDeadline(room);
       });
       return json(view(record!));
@@ -413,7 +453,8 @@ export async function dotsAction(rawCode: string, action: string, body: Record<s
               room.status = 'COMPLETED';
               room.turnDeadline = null;
             } else if (wasTheirTurn) {
-              room.turnIndex = pIndex % room.players.length;
+              const nextIdx = getNextActiveDotsTurnIndex(room.players, Math.max(0, pIndex - 1));
+              room.turnIndex = nextIdx;
               room.currentTurnPlayerId = room.players[room.turnIndex].id;
               refreshTurnDeadline(room);
             } else {
@@ -428,7 +469,7 @@ export async function dotsAction(rawCode: string, action: string, body: Record<s
       return json({ success: true });
     }
 
-    // Handles both bot moves AND turn-deadline auto-moves without server timers.
+    // Handles bot moves AND turn-deadline auto-moves with Idle tracking
     case 'tick': {
       let acted = false;
       const { record } = await mutateRoom<DotsRoom>(code, GAME, (room, rec) => {
@@ -442,9 +483,16 @@ export async function dotsAction(rawCode: string, action: string, body: Record<s
         const isBotReady =
           activePlayer.isBot && now - rec.updatedAt >= DOTS_BOT_DELAY_MS - BOT_DELAY_TOLERANCE_MS;
         const isDeadlineExpired =
-          room.turnDeadline !== null && room.timerSeconds > 0 && now >= room.turnDeadline - 150;
+          room.turnDeadline !== null && now >= room.turnDeadline - 150;
 
         if (!isBotReady && !isDeadlineExpired) return 'noop';
+
+        if (isDeadlineExpired && !activePlayer.isBot) {
+          activePlayer.missedTurns = (activePlayer.missedTurns || 0) + 1;
+          if (activePlayer.missedTurns >= 2) {
+            activePlayer.isIdle = true;
+          }
+        }
 
         const move = calculateBotMove(room.gridSize, room.lines);
         if (!move) return 'noop';
@@ -454,6 +502,16 @@ export async function dotsAction(rawCode: string, action: string, body: Record<s
         acted = true;
       });
       return json(view(record!, { acted }));
+    }
+
+    case 'un-idle': {
+      const { record } = await mutateRoom<DotsRoom>(code, GAME, (room) => {
+        const p = room.players.find((item) => item.id === playerId);
+        if (!p) throw new GameError(404, 'Player not found in room');
+        p.isIdle = false;
+        p.missedTurns = 0;
+      });
+      return json(view(record!));
     }
 
     default:

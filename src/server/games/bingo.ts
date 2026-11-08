@@ -23,6 +23,40 @@ const GAME = 'bingo' as const;
 /** Minimum time a bot "thinks" before its pick is accepted (original: 1000ms setTimeout). */
 export const BINGO_BOT_DELAY_MS = 800;
 const BOT_DELAY_TOLERANCE_MS = 250;
+export const BINGO_TURN_TIMEOUT_MS = 20_000;
+
+/**
+ * Returns the index of the next active player who is NOT idle.
+ * Skips players marked with `isIdle: true`.
+ */
+export function getNextActiveTurnIndex(players: { isIdle?: boolean }[], currentIndex: number): number {
+  if (players.length <= 1) return 0;
+  for (let i = 1; i <= players.length; i++) {
+    const candidateIdx = (currentIndex + i) % players.length;
+    if (!players[candidateIdx]?.isIdle) {
+      return candidateIdx;
+    }
+  }
+  // Fallback if all players are somehow idle
+  return (currentIndex + 1) % players.length;
+}
+
+/**
+ * Returns next starting player index using round-robin rotation,
+ * ensuring the starter is not marked as idle.
+ */
+function getNextStartingTurnIndex(room: { players: { isIdle?: boolean }[]; startTurnIndex?: number }): number {
+  if (room.players.length === 0) return 0;
+  const currentStart = typeof room.startTurnIndex === 'number' ? room.startTurnIndex : -1;
+  const target = (currentStart + 1) % room.players.length;
+  for (let i = 0; i < room.players.length; i++) {
+    const candidate = (target + i) % room.players.length;
+    if (!room.players[candidate]?.isIdle) {
+      return candidate;
+    }
+  }
+  return target;
+}
 
 /**
  * Sanitizes a Room object for a specific viewer so opponents' secret 5x5 cards
@@ -97,6 +131,10 @@ function executePickNumber(room: Room, playerId: string, number: number): { succ
   const callingPlayer = room.players.find((p) => p.id === playerId);
   if (!callingPlayer) return { success: false, error: 'Player not found in room' };
 
+  // Reset idle/missed-turn state when the player acts
+  callingPlayer.isIdle = false;
+  callingPlayer.missedTurns = 0;
+
   room.calledNumbers.push(number);
   if (!room.callHistory) room.callHistory = [];
   room.callHistory.push({
@@ -122,18 +160,22 @@ function executePickNumber(room: Room, playerId: string, number: number): { succ
   if (winners.length > 0) {
     room.winner = winners.find((p) => p.id === playerId) || winners[0];
     room.status = 'COMPLETED';
+    room.turnDeadline = null;
     return { success: true };
   }
 
   if (room.calledNumbers.length >= 25) {
     room.status = 'COMPLETED';
+    room.turnDeadline = null;
     return { success: true };
   }
 
-  // Advance turn to next player safely
+  // Advance turn to next active (non-idle) player using round-robin
   const currentIdx = room.players.findIndex((p) => p.id === playerId);
-  room.turnIndex = currentIdx !== -1 ? (currentIdx + 1) % room.players.length : 0;
+  room.turnIndex = getNextActiveTurnIndex(room.players, currentIdx !== -1 ? currentIdx : 0);
   room.currentTurnPlayerId = room.players[room.turnIndex].id;
+  room.turnDeadline = Date.now() + BINGO_TURN_TIMEOUT_MS;
+  room.turnTimerSeconds = 20;
 
   return { success: true };
 }
@@ -304,15 +346,23 @@ export async function bingoAction(rawCode: string, action: string, body: Record<
         room.currentNumber = null;
         room.winner = null;
         room.status = 'PLAYING';
-        room.turnIndex = 0;
-        room.currentTurnPlayerId = room.players[0].id;
+
+        // Round-robin starting player
+        const startIdx = getNextStartingTurnIndex(room);
+        room.startTurnIndex = startIdx;
+        room.turnIndex = startIdx;
+        room.currentTurnPlayerId = room.players[startIdx].id;
+        room.turnDeadline = Date.now() + BINGO_TURN_TIMEOUT_MS;
+        room.turnTimerSeconds = 20;
         room.lastCallerName = null;
 
-        // Ensure every player has a fresh randomized card
+        // Ensure every player has a fresh randomized card and cleared idle stats
         room.players.forEach((p) => {
           p.card = generateBingoCard();
           p.daubed = new Array(25).fill(false);
           p.completedLines = [];
+          p.isIdle = false;
+          p.missedTurns = 0;
         });
       });
       return json(view(record!, playerId));
@@ -353,8 +403,8 @@ export async function bingoAction(rawCode: string, action: string, body: Record<
         room.currentNumber = null;
         room.winner = null;
         room.autoDrawInterval = 0;
-        room.turnIndex = 0;
-        room.currentTurnPlayerId = room.players[0].id;
+        room.turnDeadline = null;
+        room.turnTimerSeconds = 20;
         room.lastCallerName = null;
 
         room.players.forEach((p) => {
@@ -362,6 +412,8 @@ export async function bingoAction(rawCode: string, action: string, body: Record<
           p.daubed = new Array(25).fill(false);
           p.completedLines = [];
           p.isReady = p.isHost || p.isBot;
+          p.isIdle = false;
+          p.missedTurns = 0;
         });
       });
       return json(view(record!, playerId));
@@ -391,17 +443,20 @@ export async function bingoAction(rawCode: string, action: string, body: Record<
           }
 
           // If a match is in progress and only 1 player remains total, end the match with that player as winner
-          if (room.status === 'PLAYING' && room.players.length < 2) {
-            room.winner = room.players[0];
-            room.status = 'COMPLETED';
-            return;
-          }
-
-          // Fix turnIndex & currentTurnPlayerId if someone leaves mid-game
           if (room.status === 'PLAYING') {
+            if (room.players.length < 2) {
+              room.winner = room.players[0];
+              room.status = 'COMPLETED';
+              room.turnDeadline = null;
+              return;
+            }
+
+            // Fix turnIndex & currentTurnPlayerId if someone leaves mid-game
             if (wasTheirTurn) {
-              room.turnIndex = playerIdx % room.players.length;
-              room.currentTurnPlayerId = room.players[room.turnIndex].id;
+              const nextIdx = getNextActiveTurnIndex(room.players, Math.max(0, playerIdx - 1));
+              room.turnIndex = nextIdx;
+              room.currentTurnPlayerId = room.players[nextIdx].id;
+              room.turnDeadline = Date.now() + BINGO_TURN_TIMEOUT_MS;
             } else {
               const activeIdx = room.players.findIndex((p) => p.id === room.currentTurnPlayerId);
               room.turnIndex = activeIdx !== -1 ? activeIdx : 0;
@@ -414,23 +469,57 @@ export async function bingoAction(rawCode: string, action: string, body: Record<
       return json({ success: true });
     }
 
-    // Bot turn driver: replaces the server-side setTimeout. Any client in the room may call it;
-    // the server verifies a bot is actually on turn and has "thought" long enough.
+    // Turn driver: handles both Bot picks AND 20-second turn timeouts for idle players
     case 'tick': {
       let acted = false;
       const { record } = await mutateRoom<Room>(code, GAME, (room, rec) => {
         acted = false;
         if (room.status !== 'PLAYING') return 'noop';
-        const activePlayer = room.players.find((p) => p.id === room.currentTurnPlayerId);
-        if (!activePlayer || !activePlayer.isBot) return 'noop';
-        if (Date.now() - rec.updatedAt < BINGO_BOT_DELAY_MS - BOT_DELAY_TOLERANCE_MS) return 'noop';
 
-        const botNum = chooseBotNumber(activePlayer, room.calledNumbers);
-        const result = executePickNumber(room, activePlayer.id, botNum);
-        if (!result.success) return 'noop';
-        acted = true;
+        const now = Date.now();
+        const activePlayer = room.players.find((p) => p.id === room.currentTurnPlayerId);
+        if (!activePlayer) return 'noop';
+
+        // 1. Bot turn processing
+        if (activePlayer.isBot) {
+          if (now - rec.updatedAt < BINGO_BOT_DELAY_MS - BOT_DELAY_TOLERANCE_MS) return 'noop';
+          const botNum = chooseBotNumber(activePlayer, room.calledNumbers);
+          const result = executePickNumber(room, activePlayer.id, botNum);
+          if (!result.success) return 'noop';
+          acted = true;
+          return;
+        }
+
+        // 2. 20-second Turn Timeout for human players
+        if (room.turnDeadline && now >= room.turnDeadline - 150) {
+          activePlayer.missedTurns = (activePlayer.missedTurns || 0) + 1;
+          if (activePlayer.missedTurns >= 2) {
+            activePlayer.isIdle = true;
+          }
+
+          // Advance turn to next active (non-idle) player
+          const nextIdx = getNextActiveTurnIndex(room.players, room.turnIndex);
+          room.turnIndex = nextIdx;
+          room.currentTurnPlayerId = room.players[nextIdx].id;
+          room.turnDeadline = now + BINGO_TURN_TIMEOUT_MS;
+          acted = true;
+          return;
+        }
+
+        return 'noop';
       });
       return json(view(record!, playerId, { acted }));
+    }
+
+    // Un-idle action: allows an idle/AFK player to reactivate themselves
+    case 'un-idle': {
+      const { record } = await mutateRoom<Room>(code, GAME, (room) => {
+        const p = room.players.find((item) => item.id === playerId);
+        if (!p) throw new GameError(404, 'Player not found in room');
+        p.isIdle = false;
+        p.missedTurns = 0;
+      });
+      return json(view(record!, playerId));
     }
 
     default:

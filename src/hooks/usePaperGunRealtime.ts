@@ -73,12 +73,19 @@ export function usePaperGunRealtime() {
     }
     prevStatusRef.current = updatedRoom.status;
 
-    setRoom(updatedRoom);
     const pid = playerIdRef.current;
     if (pid) {
       const me = updatedRoom.players.find((p) => p.id === pid);
-      if (me) setPlayer(me);
+      if (me) {
+        setPlayer(me);
+      } else {
+        sessionStorage.removeItem(SESSION_KEY);
+        setRoom(null);
+        setPlayer(null);
+        return;
+      }
     }
+    setRoom(updatedRoom);
   }, []);
 
   const { noteVersion } = useRoomSync<PaperGunRoom>({
@@ -88,6 +95,32 @@ export function usePaperGunRealtime() {
       `/api/papergun/rooms/${encodeURIComponent(code)}?playerId=${encodeURIComponent(pid)}`,
     onRoomSnapshot: handleStateUpdate,
   });
+
+  // Clean exit when player closes tab or unloads window
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleUnload = () => {
+      if (room?.code && player?.id) {
+        try {
+          fetch(`/api/papergun/rooms/${encodeURIComponent(room.code)}/leave`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ playerId: player.id }),
+            keepalive: true,
+          });
+        } catch {
+          // Ignore
+        }
+      }
+    };
+
+    window.addEventListener('pagehide', handleUnload);
+    window.addEventListener('beforeunload', handleUnload);
+    return () => {
+      window.removeEventListener('pagehide', handleUnload);
+      window.removeEventListener('beforeunload', handleUnload);
+    };
+  }, [room?.code, player?.id]);
 
   // Drive bot turns automatically from the client (validated by the server)
   useEffect(() => {

@@ -67,12 +67,19 @@ export function useDotsRealtime() {
     }
     prevStatusRef.current = mergedRoom.status;
 
-    setRoom(mergedRoom);
     const pid = playerIdRef.current;
     if (pid) {
       const me = mergedRoom.players.find((p) => p.id === pid);
-      if (me) setPlayer(me);
+      if (me) {
+        setPlayer(me);
+      } else {
+        sessionStorage.removeItem(SESSION_KEY);
+        setRoom(null);
+        setPlayer(null);
+        return;
+      }
     }
+    setRoom(mergedRoom);
   }, []);
 
   const { noteVersion } = useRoomSync<DotsRoom>({
@@ -81,6 +88,32 @@ export function useDotsRealtime() {
     buildFetchUrl: (code) => `/api/dots/rooms/${encodeURIComponent(code)}`,
     onRoomSnapshot: handleStateUpdate,
   });
+
+  // Clean exit when player closes tab or unloads window
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleUnload = () => {
+      if (room?.code && player?.id) {
+        try {
+          fetch(`/api/dots/rooms/${encodeURIComponent(room.code)}/leave`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ playerId: player.id }),
+            keepalive: true,
+          });
+        } catch {
+          // Ignore
+        }
+      }
+    };
+
+    window.addEventListener('pagehide', handleUnload);
+    window.addEventListener('beforeunload', handleUnload);
+    return () => {
+      window.removeEventListener('pagehide', handleUnload);
+      window.removeEventListener('beforeunload', handleUnload);
+    };
+  }, [room?.code, player?.id]);
 
   // Drive bot turns and turn-timer expirations from the client
   useEffect(() => {
@@ -91,7 +124,7 @@ export function useDotsRealtime() {
     let delayMs: number | null = null;
     if (activePlayer.isBot) {
       delayMs = 800;
-    } else if (room.turnDeadline && room.timerSeconds > 0) {
+    } else if (room.turnDeadline) {
       delayMs = Math.max(250, room.turnDeadline - Date.now() + 150);
     }
 

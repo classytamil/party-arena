@@ -30,6 +30,7 @@ interface UseBingoRealtimeReturn {
   pickNumber: (number: number) => Promise<void>;
   rematch: () => Promise<void>;
   leaveRoom: () => Promise<void>;
+  unIdle: () => Promise<void>;
   clearError: () => void;
 }
 
@@ -73,7 +74,15 @@ export function useBingoRealtime(): UseBingoRealtimeReturn {
     const pid = playerIdRef.current;
     if (pid) {
       const current = mergedIncoming.players.find((p) => p.id === pid);
-      if (current && current.card && current.card.length === 25) {
+      if (!current) {
+        // Player was removed or left the room
+        sessionStorage.removeItem('bingo_session_room');
+        sessionStorage.removeItem('bingo_session_player');
+        setRoom(null);
+        setPlayer(null);
+        return;
+      }
+      if (current.card && current.card.length === 25) {
         if (stillPending.length > 0) {
           const mergedDaubed = [...current.daubed];
           stillPending.forEach((n) => {
@@ -121,7 +130,14 @@ export function useBingoRealtime(): UseBingoRealtimeReturn {
   useEffect(() => {
     if (!room || !player) return;
     const current = room.players.find((p) => p.id === player.id);
-    if (current && current.card && current.card.length === 25) {
+    if (!current) {
+      sessionStorage.removeItem('bingo_session_room');
+      sessionStorage.removeItem('bingo_session_player');
+      setRoom(null);
+      setPlayer(null);
+      return;
+    }
+    if (current.card && current.card.length === 25) {
       setPlayer(current);
     } else if (current) {
       setPlayer((prev) =>
@@ -137,11 +153,44 @@ export function useBingoRealtime(): UseBingoRealtimeReturn {
     }
   }, [room, player?.id]);
 
-  // Drive bot turns smoothly and responsively
+  // Clean exit when player closes tab or unloads window
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleUnload = () => {
+      if (room?.code && player?.id) {
+        try {
+          fetch(`/api/rooms/${encodeURIComponent(room.code)}/leave`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ playerId: player.id }),
+            keepalive: true,
+          });
+        } catch {
+          // Ignore unload errors
+        }
+      }
+    };
+
+    window.addEventListener('pagehide', handleUnload);
+    window.addEventListener('beforeunload', handleUnload);
+    return () => {
+      window.removeEventListener('pagehide', handleUnload);
+      window.removeEventListener('beforeunload', handleUnload);
+    };
+  }, [room?.code, player?.id]);
+
+  // Drive bot turns AND 20-second turn timeout ticks smoothly
   useEffect(() => {
     if (!room || !player || room.status !== 'PLAYING') return;
     const activePlayer = room.players.find((p) => p.id === room.currentTurnPlayerId);
-    if (!activePlayer || !activePlayer.isBot) return;
+    if (!activePlayer) return;
+
+    let delayMs = 700;
+    if (!activePlayer.isBot) {
+      if (!room.turnDeadline) return;
+      const msLeft = room.turnDeadline - Date.now();
+      delayMs = Math.max(150, msLeft + 50);
+    }
 
     let cancelled = false;
 
@@ -161,7 +210,7 @@ export function useBingoRealtime(): UseBingoRealtimeReturn {
       } catch {
         // Next poll or broadcast will retry if needed
       }
-    }, 700);
+    }, delayMs);
 
     return () => {
       cancelled = true;
@@ -171,6 +220,7 @@ export function useBingoRealtime(): UseBingoRealtimeReturn {
     room?.code,
     room?.status,
     room?.currentTurnPlayerId,
+    room?.turnDeadline,
     room?.calledNumbers.length,
     player?.id,
     applyRoomSnapshot,
@@ -581,6 +631,25 @@ export function useBingoRealtime(): UseBingoRealtimeReturn {
     }
   };
 
+  const unIdle = async () => {
+    if (!room || !player) return;
+    playClickSound();
+    try {
+      const res = await fetch(`/api/rooms/${room.code}/un-idle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId: player.id }),
+      });
+      const data = await res.json();
+      if (data.success && data.room) {
+        noteVersion(data.version);
+        applyRoomSnapshot(data.room);
+      }
+    } catch (err: unknown) {
+      console.error('Error clearing idle state:', err);
+    }
+  };
+
   return {
     room,
     player,
@@ -596,6 +665,7 @@ export function useBingoRealtime(): UseBingoRealtimeReturn {
     pickNumber,
     rematch,
     leaveRoom,
+    unIdle,
     clearError,
   };
 }

@@ -86,6 +86,8 @@ export interface DotsPlayer {
   isReady: boolean;
   isBot: boolean;
   connected: boolean;
+  isIdle?: boolean;
+  missedTurns?: number;
 }
 
 export interface ClaimedBox {
@@ -118,6 +120,7 @@ export interface DotsRoom {
   players: DotsPlayer[];
   currentTurnPlayerId: string;
   turnIndex: number;
+  startTurnIndex?: number;
   lines: Record<string, string>; // edgeId -> playerId
   boxes: Record<string, ClaimedBox>; // `${r}-${c}` -> ClaimedBox
   moves: DotsMove[];

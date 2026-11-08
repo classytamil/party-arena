@@ -317,7 +317,9 @@ export async function paperGunAction(rawCode: string, action: string, body: Reco
           throw new GameError(400, 'Both players must be ready before starting.');
         }
 
-        const firstTurnIdx = Math.random() < 0.5 ? 0 : 1;
+        const currentStart = typeof room.startTurnIndex === 'number' ? room.startTurnIndex : -1;
+        const firstTurnIdx = (currentStart + 1) % room.players.length;
+        room.startTurnIndex = firstTurnIdx;
         room.status = 'PLAYING';
         room.currentTurnPlayerId = room.players[firstTurnIdx].id;
         room.turnIndex = 0;
@@ -329,7 +331,7 @@ export async function paperGunAction(rawCode: string, action: string, body: Reco
         room.reloadMatches = [];
         room.winnerId = null;
         room.logs.unshift(
-          `Duel started! ${room.players[firstTurnIdx].name} was randomly selected to take the first turn.`
+          `Duel started! ${room.players[firstTurnIdx].name} takes the first turn in round-robin order.`
         );
       });
       return json(view(record!, playerId));
@@ -373,7 +375,9 @@ export async function paperGunAction(rawCode: string, action: string, body: Reco
       const { record } = await mutateRoom<PaperGunRoom>(code, GAME, (room) => {
         if (room.status !== 'COMPLETED') throw new GameError(400, 'Match is not completed');
 
-        const firstTurnIdx = Math.random() < 0.5 ? 0 : 1;
+        const currentStart = typeof room.startTurnIndex === 'number' ? room.startTurnIndex : -1;
+        const firstTurnIdx = (currentStart + 1) % room.players.length;
+        room.startTurnIndex = firstTurnIdx;
         room.status = 'PLAYING';
         room.currentTurnPlayerId = room.players[firstTurnIdx].id;
         room.turnIndex = 0;
@@ -393,11 +397,13 @@ export async function paperGunAction(rawCode: string, action: string, body: Reco
           p.shotsFired = 0;
           p.eliminationsCount = 0;
           p.isReady = true;
+          p.isIdle = false;
+          p.missedTurns = 0;
         });
 
         room.logs = [
           `Rematch started! Fresh 5 characters for each duelist!`,
-          `${room.players[firstTurnIdx].name} takes the first turn!`,
+          `${room.players[firstTurnIdx].name} takes the first turn in round-robin order!`,
         ];
       });
       return json(view(record!, playerId));

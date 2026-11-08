@@ -216,6 +216,7 @@ export default function App() {
                 onPickNumber={bingo.pickNumber}
                 onDrawNextNumber={bingo.drawNextNumber}
                 onLeaveRoom={handleLeaveBingo}
+                onUnIdle={bingo.unIdle}
               />
 
               {bingo.room.status === 'COMPLETED' && (

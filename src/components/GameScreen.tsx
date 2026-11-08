@@ -25,6 +25,7 @@ interface GameScreenProps {
   onPickNumber: (number: number) => Promise<void>;
   onDrawNextNumber: () => Promise<void>;
   onLeaveRoom: () => Promise<void>;
+  onUnIdle?: () => Promise<void>;
 }
 
 /**
@@ -64,10 +65,23 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   player,
   onPickNumber,
   onLeaveRoom,
+  onUnIdle,
 }) => {
   const [isMuted, setIsMuted] = useState(getSoundMuted());
   const [newestFirst, setNewestFirst] = useState(true);
   const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
+  const [now, setNow] = useState(Date.now());
+
+  // 1-second ticker for accurate turn timer countdown
+  useEffect(() => {
+    if (room.status !== 'PLAYING') return;
+    const interval = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(interval);
+  }, [room.status]);
+
+  const secondsLeft = room.turnDeadline
+    ? Math.max(0, Math.ceil((room.turnDeadline - now) / 1000))
+    : null;
 
   // Immediate 0ms local optimistic state: marks clicked number instantaneously
   const [localPickedNumbers, setLocalPickedNumbers] = useState<number[]>([]);
@@ -359,12 +373,19 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                           {myLines}/5
                         </span>
                       )}
+                      {p.isIdle && (
+                        <span className="text-[9px] font-mono font-extrabold px-1 py-0.2 rounded bg-amber-100 text-amber-700">
+                          💤 Idle
+                        </span>
+                      )}
                     </div>
                     <div className="text-[10px] font-semibold leading-tight">
                       {isTurn ? (
                         <span className="text-blue-600">
                           {isMe ? 'Your Turn' : 'Picking...'}
                         </span>
+                      ) : p.isIdle ? (
+                        <span className="text-amber-500 font-semibold">Idle</span>
                       ) : (
                         <span className="text-slate-400">Waiting</span>
                       )}
@@ -375,7 +396,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
             })}
           </div>
 
-          {/* Turn Status & Last Called Pill */}
+          {/* Turn Status, 20s Countdown & Last Called Pill */}
           <div className="flex items-center justify-between px-4 py-2.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs">
             <div className="flex items-center gap-2">
               <span
@@ -388,6 +409,18 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                   ? 'Your turn — tap any number'
                   : `${currentTurnPlayer?.name}'s turn...`}
               </span>
+              {secondsLeft !== null && (
+                <span
+                  className={`px-2 py-0.5 rounded-lg font-mono font-extrabold text-xs transition-colors ${
+                    secondsLeft <= 5
+                      ? 'bg-rose-100 text-rose-700 animate-pulse border border-rose-300'
+                      : 'bg-amber-50 text-amber-700 border border-amber-200'
+                  }`}
+                  title="Turn time remaining"
+                >
+                  ⏱️ {secondsLeft}s
+                </span>
+              )}
             </div>
 
             {effectiveCurrentNumber ? (
@@ -401,6 +434,25 @@ export const GameScreen: React.FC<GameScreenProps> = ({
               <span className="text-xs text-slate-400 font-mono">0/25 called</span>
             )}
           </div>
+
+          {/* Idle notice & resume button if current player is idle */}
+          {player.isIdle && (
+            <div className="flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-amber-50 border border-amber-200 shadow-2xs">
+              <div className="flex items-center gap-2 text-xs text-amber-800 font-semibold">
+                <span>💤</span>
+                <span>You were marked as Idle. Rejoin rotation anytime:</span>
+              </div>
+              {onUnIdle && (
+                <button
+                  type="button"
+                  onClick={onUnIdle}
+                  className="px-3 py-1 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-display font-bold text-xs shadow-xs active:scale-95 transition-all"
+                >
+                  I'm Back
+                </button>
+              )}
+            </div>
+          )}
 
           {/* 3 & 4. Unified B-I-N-G-O Progress Header + 5x5 Tactile Grid */}
           <div className="bg-white border border-slate-200/90 rounded-3xl p-3.5 sm:p-5 shadow-[0_10px_35px_rgb(0,0,0,0.05)]">

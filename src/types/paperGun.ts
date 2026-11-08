@@ -61,6 +61,8 @@ export interface PaperGunPlayer {
   shieldedCharacter?: PaperGunNumber | null; // Secret shield (masked from opponent)
   shotsFired: number;
   eliminationsCount: number;
+  isIdle?: boolean;
+  missedTurns?: number;
 }
 
 export type ActionChoice =
@@ -99,6 +101,9 @@ export interface PaperGunRoom {
   players: PaperGunPlayer[];
   currentTurnPlayerId: string;
   turnIndex: number;
+  startTurnIndex?: number;
+  turnDeadline?: number | null;
+  turnTimerSeconds?: number;
   turnAttempt: number; // 1, 2, or 3
   currentRoll: PaperGunNumber | null;
   drawnChoices?: PaperGunNumber[] | null; // Two drawn numbers for the player to pick from
