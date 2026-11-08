@@ -44,38 +44,68 @@ export function useBingoRealtime(): UseBingoRealtimeReturn {
   const prevCalledCountRef = useRef<number>(0);
   const pickingLockRef = useRef<boolean>(false);
   const lastLocalPickedRef = useRef<number | null>(null);
+  const pendingNumbersRef = useRef<Set<number>>(new Set());
   const playerIdRef = useRef<string | null>(null);
   playerIdRef.current = player?.id ?? null;
 
   const clearError = useCallback(() => setError(null), []);
 
   const applyRoomSnapshot = useCallback((incoming: Room) => {
+    // 1. Remove confirmed numbers from pending optimistic set
+    incoming.calledNumbers.forEach((n) => pendingNumbersRef.current.delete(n));
+
+    // 2. Merge any in-flight optimistic numbers so a stale snapshot never reverts a click
+    const stillPending = Array.from(pendingNumbersRef.current);
+    const mergedCalled =
+      stillPending.length > 0
+        ? Array.from(new Set([...incoming.calledNumbers, ...stillPending]))
+        : incoming.calledNumbers;
+
+    const mergedIncoming: Room =
+      stillPending.length > 0
+        ? {
+            ...incoming,
+            calledNumbers: mergedCalled,
+            currentNumber: incoming.currentNumber ?? (stillPending[stillPending.length - 1] || null),
+          }
+        : incoming;
+
     const pid = playerIdRef.current;
     if (pid) {
-      const current = incoming.players.find((p) => p.id === pid);
+      const current = mergedIncoming.players.find((p) => p.id === pid);
       if (current && current.card && current.card.length === 25) {
-        setPlayer(current);
+        if (stillPending.length > 0) {
+          const mergedDaubed = [...current.daubed];
+          stillPending.forEach((n) => {
+            const idx = current.card.indexOf(n);
+            if (idx !== -1) mergedDaubed[idx] = true;
+          });
+          const mergedLines = getCompletedLineIndices(mergedDaubed);
+          setPlayer({ ...current, daubed: mergedDaubed, completedLines: mergedLines });
+        } else {
+          setPlayer(current);
+        }
       }
     }
 
     setRoom((prev) => {
-      if (prev && incoming.status === 'WAITING' && prev.status !== 'WAITING') {
+      if (prev && mergedIncoming.status === 'WAITING' && prev.status !== 'WAITING') {
         prevLineCountRef.current = 0;
         lastLocalPickedRef.current = null;
         prevCalledCountRef.current = 0;
       }
       if (
-        incoming.status === 'PLAYING' &&
-        incoming.calledNumbers.length > prevCalledCountRef.current
+        mergedIncoming.status === 'PLAYING' &&
+        mergedIncoming.calledNumbers.length > prevCalledCountRef.current
       ) {
-        prevCalledCountRef.current = incoming.calledNumbers.length;
-        if (incoming.currentNumber !== lastLocalPickedRef.current) {
+        prevCalledCountRef.current = mergedIncoming.calledNumbers.length;
+        if (mergedIncoming.currentNumber !== lastLocalPickedRef.current) {
           playDaubSound();
         }
       } else {
-        prevCalledCountRef.current = incoming.calledNumbers.length;
+        prevCalledCountRef.current = mergedIncoming.calledNumbers.length;
       }
-      return incoming;
+      return mergedIncoming;
     });
   }, []);
 
@@ -431,6 +461,7 @@ export function useBingoRealtime(): UseBingoRealtimeReturn {
 
     pickingLockRef.current = true;
     lastLocalPickedRef.current = number;
+    pendingNumbersRef.current.add(number);
 
     // 1. Play tactile daub sound immediately
     playDaubSound();
@@ -490,9 +521,11 @@ export function useBingoRealtime(): UseBingoRealtimeReturn {
       });
       const data = await res.json();
       if (data.success && data.room) {
+        pendingNumbersRef.current.delete(number);
         noteVersion(data.version);
         applyRoomSnapshot(data.room);
       } else if (data.error) {
+        pendingNumbersRef.current.delete(number);
         setError(data.error);
         // Revert on error
         void fetch(`/api/rooms/${room.code}?playerId=${player.id}`)
@@ -500,6 +533,7 @@ export function useBingoRealtime(): UseBingoRealtimeReturn {
           .then((d) => d.room && applyRoomSnapshot(d.room));
       }
     } catch (err: unknown) {
+      pendingNumbersRef.current.delete(number);
       console.error('Error picking number:', err);
     } finally {
       pickingLockRef.current = false;

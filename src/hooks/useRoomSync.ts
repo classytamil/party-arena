@@ -54,7 +54,7 @@ export function useRoomSync<TRoom>({
       const data = await res.json();
       if (data && data.room) {
         if (typeof data.version === 'number') {
-          if (data.version < lastVersionRef.current) return;
+          if (data.version <= lastVersionRef.current) return;
           lastVersionRef.current = data.version;
         }
         onSnapshotRef.current(data.room as TRoom);

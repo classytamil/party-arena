@@ -25,16 +25,33 @@ export function useDotsRealtime() {
   const lastLineRef = useRef<string | null>(null);
   const lastBoxesCountRef = useRef<number>(0);
   const prevStatusRef = useRef<string | null>(null);
+  const pendingLinesRef = useRef<Map<string, string>>(new Map());
   const playerIdRef = useRef<string | null>(null);
   playerIdRef.current = player?.id ?? null;
 
   const handleStateUpdate = useCallback((updatedRoom: DotsRoom) => {
-    if (updatedRoom.status === 'PLAYING') {
-      const currentBoxesCount = Object.keys(updatedRoom.boxes).length;
+    // 1. Remove confirmed lines from pending set
+    Object.keys(updatedRoom.lines).forEach((lId) => pendingLinesRef.current.delete(lId));
+
+    // 2. Preserve any in-flight optimistic lines so a stale snapshot never wipes out drawn lines
+    const stillPending = Array.from(pendingLinesRef.current.entries());
+    const mergedRoom: DotsRoom =
+      stillPending.length > 0
+        ? {
+            ...updatedRoom,
+            lines: {
+              ...updatedRoom.lines,
+              ...Object.fromEntries(stillPending),
+            },
+          }
+        : updatedRoom;
+
+    if (mergedRoom.status === 'PLAYING') {
+      const currentBoxesCount = Object.keys(mergedRoom.boxes).length;
       const prevBoxesCount = lastBoxesCountRef.current;
 
-      if (updatedRoom.lastDrawnLineId && updatedRoom.lastDrawnLineId !== lastLineRef.current) {
-        lastLineRef.current = updatedRoom.lastDrawnLineId;
+      if (mergedRoom.lastDrawnLineId && mergedRoom.lastDrawnLineId !== lastLineRef.current) {
+        lastLineRef.current = mergedRoom.lastDrawnLineId;
         const diff = currentBoxesCount - prevBoxesCount;
         if (diff >= 2) {
           playComboClaimSound();
@@ -45,15 +62,15 @@ export function useDotsRealtime() {
         }
       }
       lastBoxesCountRef.current = currentBoxesCount;
-    } else if (updatedRoom.status === 'COMPLETED' && prevStatusRef.current !== 'COMPLETED') {
+    } else if (mergedRoom.status === 'COMPLETED' && prevStatusRef.current !== 'COMPLETED') {
       playVictorySound();
     }
-    prevStatusRef.current = updatedRoom.status;
+    prevStatusRef.current = mergedRoom.status;
 
-    setRoom(updatedRoom);
+    setRoom(mergedRoom);
     const pid = playerIdRef.current;
     if (pid) {
-      const me = updatedRoom.players.find((p) => p.id === pid);
+      const me = mergedRoom.players.find((p) => p.id === pid);
       if (me) setPlayer(me);
     }
   }, []);
@@ -453,6 +470,7 @@ export function useDotsRealtime() {
       };
 
       // Apply optimistic update simultaneously to room and player state
+      pendingLinesRef.current.set(lineId, player.id);
       setRoom(optimisticRoom);
       setPlayer(updatedPlayer);
 
@@ -464,12 +482,15 @@ export function useDotsRealtime() {
         });
         const data = await res.json();
         if (!res.ok || !data.success) {
+          pendingLinesRef.current.delete(lineId);
           setError(data.error || 'Invalid move');
         } else if (data.room) {
+          pendingLinesRef.current.delete(lineId);
           noteVersion(data.version);
           handleStateUpdate(data.room);
         }
       } catch (err) {
+        pendingLinesRef.current.delete(lineId);
         console.error('Error making move:', err);
       }
     },
