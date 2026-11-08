@@ -52,3 +52,11 @@
   stroke-dasharray: 600;
   animation: draw-line 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* Keep the Dots & Boxes latest-move effects from looping indefinitely. */
+svg line[filter="url(#last-move-glow)"],
+svg line[stroke-dasharray="8 6"],
+svg circle.animate-ping,
+svg g.animate-bounce {
+  animation-iteration-count: 1;
+}
