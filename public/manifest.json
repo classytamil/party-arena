@@ -1,0 +1,78 @@
+{
+  "name": "Party Arena – Multiplayer Games",
+  "short_name": "Party Arena",
+  "description": "Real-time multiplayer party game platform featuring Bingo 25, Dots & Boxes, and Paper Gun Battle.",
+  "start_url": "/",
+  "id": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "window-controls-overlay", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#0f172a",
+  "theme_color": "#2563eb",
+  "categories": ["games", "entertainment", "social"],
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Bingo 25",
+      "short_name": "Bingo",
+      "description": "Play 5x5 Multiplayer Bingo",
+      "url": "/?game=bingo",
+      "icons": [
+        {
+          "src": "/icons/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Dots & Boxes",
+      "short_name": "Dots",
+      "description": "Play Tactical Dots & Boxes Arena",
+      "url": "/?game=dots",
+      "icons": [
+        {
+          "src": "/icons/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Paper Gun Battle",
+      "short_name": "Paper Gun",
+      "description": "Play Paper Gun Battle Duel",
+      "url": "/?game=papergun",
+      "icons": [
+        {
+          "src": "/icons/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}

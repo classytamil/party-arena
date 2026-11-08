@@ -4,9 +4,10 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Volume2, VolumeX, ArrowRight, User, Hash, Sparkles } from 'lucide-react';
+import { Volume2, VolumeX, ArrowRight, User, Hash, Sparkles, Download } from 'lucide-react';
 import { AVATAR_OPTIONS } from '../types/bingo';
 import { getSoundMuted, setSoundMuted, playClickSound } from '../utils/sound';
+import { usePwaInstall } from '../hooks/usePwaInstall';
 
 interface GameHubProps {
   onOpenBingoLanding: () => void;
@@ -30,6 +31,7 @@ export const GameHub: React.FC<GameHubProps> = ({
   const [joinCode, setJoinCode] = useState('');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isMuted, setIsMuted] = useState(getSoundMuted());
+  const { canInstall, promptInstall } = usePwaInstall();
 
   // Load saved profile
   useEffect(() => {
@@ -88,6 +90,23 @@ export const GameHub: React.FC<GameHubProps> = ({
           </div>
 
           <div className="flex items-center gap-2.5">
+            {/* Install PWA Button (Shows when browser can install) */}
+            {canInstall && (
+              <button
+                type="button"
+                onClick={() => {
+                  playClickSound();
+                  promptInstall();
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-xs active:scale-95 transition-all cursor-pointer animate-pulse"
+                title="Install Party Arena on your device"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Install App</span>
+                <span className="sm:hidden">Install</span>
+              </button>
+            )}
+
             {/* Player profile badge */}
             <button
               onClick={() => {
