@@ -1,5 +1,12 @@
-import React, { useMemo, useState } from 'react';
-import { Room, Player, AVATAR_OPTIONS, WINNING_LINES, CallLogEntry } from '../types/bingo';
+import React, { useMemo, useState, useEffect } from 'react';
+import {
+  Room,
+  Player,
+  AVATAR_OPTIONS,
+  WINNING_LINES,
+  CallLogEntry,
+  getCompletedLineIndices,
+} from '../types/bingo';
 import {
   Volume2,
   VolumeX,
@@ -62,6 +69,14 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   const [newestFirst, setNewestFirst] = useState(true);
   const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
 
+  // Immediate 0ms local optimistic state: marks clicked number instantaneously
+  const [localPickedNumbers, setLocalPickedNumbers] = useState<number[]>([]);
+
+  // Prune local picked numbers once the server room snapshot confirms them
+  useEffect(() => {
+    setLocalPickedNumbers((prev) => prev.filter((n) => !room.calledNumbers.includes(n)));
+  }, [room.calledNumbers]);
+
   const handleToggleMute = () => {
     const next = !isMuted;
     setIsMuted(next);
@@ -72,17 +87,53 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   const currentTurnPlayer =
     room.players.find((p) => p.id === room.currentTurnPlayerId) || room.players[0];
 
+  // Effective called numbers merging server authoritative list + immediate local click
+  const effectiveCalledNumbers = useMemo(() => {
+    if (localPickedNumbers.length === 0) return room.calledNumbers;
+    return Array.from(new Set([...room.calledNumbers, ...localPickedNumbers]));
+  }, [room.calledNumbers, localPickedNumbers]);
+
+  const effectiveCurrentNumber =
+    localPickedNumbers.length > 0
+      ? localPickedNumbers[localPickedNumbers.length - 1]
+      : room.currentNumber;
+
+  // Effective daubed card array updating in 0ms on click
+  const effectiveDaubed = useMemo(() => {
+    const daubed = [...player.daubed];
+    localPickedNumbers.forEach((num) => {
+      const idx = player.card.indexOf(num);
+      if (idx !== -1) daubed[idx] = true;
+    });
+    return daubed;
+  }, [player.daubed, player.card, localPickedNumbers]);
+
+  // Effective completed lines indices updating in 0ms on click
+  const effectiveCompletedLines = useMemo(() => {
+    if (localPickedNumbers.length === 0) return player.completedLines;
+    return getCompletedLineIndices(effectiveDaubed);
+  }, [player.completedLines, effectiveDaubed, localPickedNumbers.length]);
+
   // Set of cell indices that belong to completed lines
   const winningCellIndices = useMemo(() => {
     const indices = new Set<number>();
-    player.completedLines.forEach((lineIdx) => {
+    effectiveCompletedLines.forEach((lineIdx) => {
       const line = WINNING_LINES[lineIdx];
       if (line) {
         line.indices.forEach((cellIdx) => indices.add(cellIdx));
       }
     });
     return indices;
-  }, [player.completedLines]);
+  }, [effectiveCompletedLines]);
+
+  const handleCellClick = (num: number) => {
+    if (!isMyTurn || effectiveCalledNumbers.includes(num)) return;
+    // 1. Instant 0ms synchronous local feedback: turns blue immediately!
+    setLocalPickedNumbers((prev) => [...prev, num]);
+    playDaubSound();
+    // 2. Trigger asynchronous server sync in background
+    void onPickNumber(num);
+  };
 
   // Build chronological call history entries (fallback if callHistory array wasn't initialized)
   const callHistoryList: CallLogEntry[] = useMemo(() => {
@@ -145,8 +196,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({
         </div>
         <div className="grid grid-cols-5 gap-1">
           {Array.from({ length: 25 }, (_, i) => i + 1).map((num) => {
-            const isCalled = room.calledNumbers.includes(num);
-            const isLatest = room.currentNumber === num;
+            const isCalled = effectiveCalledNumbers.includes(num);
+            const isLatest = effectiveCurrentNumber === num;
             return (
               <div
                 key={num}
@@ -284,7 +335,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
               const avatar = getAvatar(p.avatar);
               const isTurn = room.currentTurnPlayerId === p.id;
               const isMe = p.id === player.id;
-              const myLines = Math.min(5, p.completedLines.length);
+              const myLines = Math.min(5, isMe ? effectiveCompletedLines.length : p.completedLines.length);
 
               return (
                 <div
@@ -339,11 +390,11 @@ export const GameScreen: React.FC<GameScreenProps> = ({
               </span>
             </div>
 
-            {room.currentNumber ? (
+            {effectiveCurrentNumber ? (
               <div className="flex items-center gap-1.5 text-xs">
                 <span className="text-slate-400">Last:</span>
                 <span className="px-2 py-0.5 rounded-lg bg-slate-900 text-white font-mono font-extrabold text-xs">
-                  {room.currentNumber}
+                  {effectiveCurrentNumber}
                 </span>
               </div>
             ) : (
@@ -356,7 +407,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
             {/* Unified B - I - N - G - O 5-Line Progress Header */}
             <div className="grid grid-cols-5 gap-2 sm:gap-2.5 mb-3">
               {BINGO_LETTERS.map((item, idx) => {
-                const isLit = player.completedLines.length > idx;
+                const isLit = effectiveCompletedLines.length > idx;
                 return (
                   <div
                     key={item.letter}
@@ -381,20 +432,16 @@ export const GameScreen: React.FC<GameScreenProps> = ({
             <div className="relative touch-manipulation">
               <div className="grid grid-cols-5 gap-2 sm:gap-2.5">
                 {player.card.map((num, idx) => {
-                  const isCalled = room.calledNumbers.includes(num);
+                  const isCalled = effectiveCalledNumbers.includes(num);
                   const isPartWinningLine = winningCellIndices.has(idx);
-                  const isLastCalled = room.currentNumber === num;
+                  const isLastCalled = effectiveCurrentNumber === num;
                   const canPickThis = isMyTurn && !isCalled;
 
                   return (
                     <button
                       key={idx}
                       type="button"
-                      onClick={() => {
-                        if (canPickThis) {
-                          onPickNumber(num);
-                        }
-                      }}
+                      onClick={() => handleCellClick(num)}
                       disabled={isCalled || !isMyTurn}
                       className={`aspect-square rounded-2xl flex flex-col items-center justify-center font-display font-black relative select-none touch-manipulation transition-transform duration-75 ${
                         isCalled
@@ -419,13 +466,13 @@ export const GameScreen: React.FC<GameScreenProps> = ({
               </div>
 
               {/* SVG Continuous Strikethrough Lines for Completed Lines */}
-              {player.completedLines.length > 0 && (
+              {effectiveCompletedLines.length > 0 && (
                 <svg
                   viewBox="0 0 100 100"
                   className="absolute inset-0 w-full h-full pointer-events-none z-10"
                   preserveAspectRatio="none"
                 >
-                  {player.completedLines.map((lineIdx) => {
+                  {effectiveCompletedLines.map((lineIdx) => {
                     const coords = LINE_SVG_COORDS[lineIdx];
                     if (!coords) return null;
                     return (
