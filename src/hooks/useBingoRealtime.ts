@@ -1,5 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Room, Player } from '../types/bingo';
+import {
+  Room,
+  Player,
+  getCompletedLineIndices,
+  WINNING_LINES_COUNT,
+} from '../types/bingo';
 import {
   playClickSound,
   playDaubSound,
@@ -39,10 +44,20 @@ export function useBingoRealtime(): UseBingoRealtimeReturn {
   const prevCalledCountRef = useRef<number>(0);
   const pickingLockRef = useRef<boolean>(false);
   const lastLocalPickedRef = useRef<number | null>(null);
+  const playerIdRef = useRef<string | null>(null);
+  playerIdRef.current = player?.id ?? null;
 
   const clearError = useCallback(() => setError(null), []);
 
   const applyRoomSnapshot = useCallback((incoming: Room) => {
+    const pid = playerIdRef.current;
+    if (pid) {
+      const current = incoming.players.find((p) => p.id === pid);
+      if (current && current.card && current.card.length === 25) {
+        setPlayer(current);
+      }
+    }
+
     setRoom((prev) => {
       if (prev && incoming.status === 'WAITING' && prev.status !== 'WAITING') {
         prevLineCountRef.current = 0;
@@ -72,7 +87,7 @@ export function useBingoRealtime(): UseBingoRealtimeReturn {
     onRoomSnapshot: applyRoomSnapshot,
   });
 
-  // Sync local player object from updated room snapshot
+  // Sync local player object if a partial room update arrives
   useEffect(() => {
     if (!room || !player) return;
     const current = room.players.find((p) => p.id === player.id);
@@ -92,13 +107,16 @@ export function useBingoRealtime(): UseBingoRealtimeReturn {
     }
   }, [room, player?.id]);
 
-  // Drive bot turns automatically from the client (validated by the server)
+  // Drive bot turns smoothly and responsively
   useEffect(() => {
     if (!room || !player || room.status !== 'PLAYING') return;
     const activePlayer = room.players.find((p) => p.id === room.currentTurnPlayerId);
     if (!activePlayer || !activePlayer.isBot) return;
 
+    let cancelled = false;
+
     const timer = setTimeout(async () => {
+      if (cancelled) return;
       try {
         const res = await fetch(`/api/rooms/${encodeURIComponent(room.code)}/tick`, {
           method: 'POST',
@@ -113,9 +131,12 @@ export function useBingoRealtime(): UseBingoRealtimeReturn {
       } catch {
         // Next poll or broadcast will retry if needed
       }
-    }, 1050);
+    }, 700);
 
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [
     room?.code,
     room?.status,
@@ -171,8 +192,8 @@ export function useBingoRealtime(): UseBingoRealtimeReturn {
             noteVersion(data.version);
             prevLineCountRef.current = data.player.completedLines?.length || 0;
             prevCalledCountRef.current = data.room.calledNumbers?.length || 0;
-            setRoom(data.room);
             setPlayer(data.player);
+            setRoom(data.room);
           } else {
             sessionStorage.removeItem('bingo_session_room');
             sessionStorage.removeItem('bingo_session_player');
@@ -209,8 +230,8 @@ export function useBingoRealtime(): UseBingoRealtimeReturn {
       noteVersion(data.version);
       prevLineCountRef.current = 0;
       prevCalledCountRef.current = 0;
-      setRoom(data.room);
       setPlayer(data.player);
+      setRoom(data.room);
       sessionStorage.setItem('bingo_session_room', data.room.code);
       sessionStorage.setItem('bingo_session_player', data.player.id);
       playJoinRoomSound();
@@ -268,8 +289,8 @@ export function useBingoRealtime(): UseBingoRealtimeReturn {
 
       prevLineCountRef.current = 0;
       prevCalledCountRef.current = 0;
-      setRoom(activeRoom);
       setPlayer(updatedHost);
+      setRoom(activeRoom);
       sessionStorage.setItem('bingo_session_room', code);
       sessionStorage.setItem('bingo_session_player', updatedHost.id);
       playJoinRoomSound();
@@ -305,8 +326,8 @@ export function useBingoRealtime(): UseBingoRealtimeReturn {
       noteVersion(data.version);
       prevLineCountRef.current = 0;
       prevCalledCountRef.current = data.room.calledNumbers?.length || 0;
-      setRoom(data.room);
       setPlayer(data.player);
+      setRoom(data.room);
       sessionStorage.setItem('bingo_session_room', data.room.code);
       sessionStorage.setItem('bingo_session_player', data.player.id);
       playJoinRoomSound();
@@ -331,7 +352,7 @@ export function useBingoRealtime(): UseBingoRealtimeReturn {
       const data = await res.json();
       if (data.success && data.room) {
         noteVersion(data.version);
-        setRoom(data.room);
+        applyRoomSnapshot(data.room);
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error toggling ready');
@@ -350,7 +371,7 @@ export function useBingoRealtime(): UseBingoRealtimeReturn {
       const data = await res.json();
       if (data.success && data.room) {
         noteVersion(data.version);
-        setRoom(data.room);
+        applyRoomSnapshot(data.room);
       } else if (data.error) {
         setError(data.error);
       }
@@ -374,7 +395,7 @@ export function useBingoRealtime(): UseBingoRealtimeReturn {
         prevLineCountRef.current = 0;
         prevCalledCountRef.current = 0;
         lastLocalPickedRef.current = null;
-        setRoom(data.room);
+        applyRoomSnapshot(data.room);
       } else if (data.error) {
         setError(data.error);
       }
@@ -411,16 +432,55 @@ export function useBingoRealtime(): UseBingoRealtimeReturn {
     pickingLockRef.current = true;
     lastLocalPickedRef.current = number;
 
-    setRoom((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        currentNumber: number,
-        calledNumbers: prev.calledNumbers.includes(number)
-          ? prev.calledNumbers
-          : [...prev.calledNumbers, number],
-      };
-    });
+    // 1. Play tactile daub sound immediately
+    playDaubSound();
+
+    // 2. Perform instantaneous optimistic state update
+    const cellIdx = player.card.indexOf(number);
+    const newDaubed = [...player.daubed];
+    if (cellIdx !== -1) {
+      newDaubed[cellIdx] = true;
+    }
+    const newCompletedLines = getCompletedLineIndices(newDaubed);
+    const isWinner = newCompletedLines.length >= WINNING_LINES_COUNT;
+
+    const currentIdx = room.players.findIndex((p) => p.id === player.id);
+    const nextTurnIndex = currentIdx !== -1 ? (currentIdx + 1) % room.players.length : 0;
+    const nextTurnPlayerId = room.players[nextTurnIndex]?.id || player.id;
+
+    const updatedPlayer: Player = {
+      ...player,
+      daubed: newDaubed,
+      completedLines: newCompletedLines,
+    };
+
+    const newCalled = [...room.calledNumbers, number];
+    const newHistory = [
+      ...(room.callHistory || []),
+      {
+        callOrder: newCalled.length,
+        number,
+        callerName: player.name,
+        timestamp: Date.now(),
+      },
+    ];
+
+    const optimisticRoom: Room = {
+      ...room,
+      currentNumber: number,
+      calledNumbers: newCalled,
+      callHistory: newHistory,
+      lastCallerName: player.name,
+      currentTurnPlayerId: nextTurnPlayerId,
+      turnIndex: nextTurnIndex,
+      status: isWinner ? 'COMPLETED' : room.status,
+      winner: isWinner ? updatedPlayer : null,
+      players: room.players.map((p) => (p.id === player.id ? updatedPlayer : p)),
+    };
+
+    // Synchronously update both player and room in the same tick!
+    setPlayer(updatedPlayer);
+    setRoom(optimisticRoom);
 
     try {
       const res = await fetch(`/api/rooms/${room.code}/pick-number`, {
@@ -434,6 +494,10 @@ export function useBingoRealtime(): UseBingoRealtimeReturn {
         applyRoomSnapshot(data.room);
       } else if (data.error) {
         setError(data.error);
+        // Revert on error
+        void fetch(`/api/rooms/${room.code}?playerId=${player.id}`)
+          .then((r) => r.json())
+          .then((d) => d.room && applyRoomSnapshot(d.room));
       }
     } catch (err: unknown) {
       console.error('Error picking number:', err);
@@ -457,7 +521,7 @@ export function useBingoRealtime(): UseBingoRealtimeReturn {
         prevLineCountRef.current = 0;
         prevCalledCountRef.current = 0;
         lastLocalPickedRef.current = null;
-        setRoom(data.room);
+        applyRoomSnapshot(data.room);
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error setting up rematch');

@@ -378,7 +378,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
             </div>
 
             {/* 5x5 Board Container with Continuous Strikethrough SVG Overlay */}
-            <div className="relative">
+            <div className="relative touch-manipulation">
               <div className="grid grid-cols-5 gap-2 sm:gap-2.5">
                 {player.card.map((num, idx) => {
                   const isCalled = room.calledNumbers.includes(num);
@@ -392,20 +392,18 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                       type="button"
                       onClick={() => {
                         if (canPickThis) {
-                          playDaubSound();
                           onPickNumber(num);
                         }
-
                       }}
                       disabled={isCalled || !isMyTurn}
-                      className={`aspect-square rounded-2xl flex flex-col items-center justify-center font-display font-black transition-all relative select-none ${
+                      className={`aspect-square rounded-2xl flex flex-col items-center justify-center font-display font-black relative select-none touch-manipulation transition-transform duration-75 ${
                         isCalled
                           ? isPartWinningLine
-                            ? 'bg-emerald-500 text-white shadow-[0_3px_0_#047857]'
+                            ? 'bg-emerald-500 text-white shadow-[0_3px_0_#047857] scale-[1.02]'
                             : 'bg-blue-600 text-white shadow-[0_3px_0_#1d4ed8]'
                           : canPickThis
-                          ? 'bg-slate-50 hover:bg-blue-50 text-slate-800 hover:text-blue-600 border-2 border-slate-200 hover:border-blue-400 shadow-[0_3px_0_#e2e8f0] cursor-pointer active:translate-y-0.5 active:shadow-none'
-                          : 'bg-slate-50/80 text-slate-700 border border-slate-200/80 cursor-default'
+                          ? 'bg-slate-50 hover:bg-blue-50 text-slate-800 hover:text-blue-600 border-2 border-slate-200 hover:border-blue-400 shadow-[0_3px_0_#e2e8f0] cursor-pointer hover:scale-[1.02] active:scale-95'
+                          : 'bg-slate-50/80 text-slate-700 border border-slate-200/80 cursor-default opacity-85'
                       }`}
                     >
                       <span className="text-xl sm:text-2xl tabular-nums leading-none">

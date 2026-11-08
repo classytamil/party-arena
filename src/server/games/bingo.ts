@@ -21,7 +21,7 @@ import { json, randomId } from '../http';
 const GAME = 'bingo' as const;
 
 /** Minimum time a bot "thinks" before its pick is accepted (original: 1000ms setTimeout). */
-export const BINGO_BOT_DELAY_MS = 1000;
+export const BINGO_BOT_DELAY_MS = 800;
 const BOT_DELAY_TOLERANCE_MS = 250;
 
 /**
