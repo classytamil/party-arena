@@ -22,6 +22,29 @@ interface DotCoord {
   c: number;
 }
 
+function parseLineCoords(lineId: string): { d1: DotCoord; d2: DotCoord; isHoriz: boolean } | null {
+  const parts = lineId.split('-');
+  if (parts.length !== 3) return null;
+  const r = parseInt(parts[1], 10);
+  const c = parseInt(parts[2], 10);
+  if (isNaN(r) || isNaN(c)) return null;
+
+  if (parts[0] === 'h') {
+    return {
+      d1: { r, c },
+      d2: { r, c: c + 1 },
+      isHoriz: true,
+    };
+  } else if (parts[0] === 'v') {
+    return {
+      d1: { r, c },
+      d2: { r: r + 1, c },
+      isHoriz: false,
+    };
+  }
+  return null;
+}
+
 export const DotsBoard: React.FC<DotsBoardProps> = ({
   room,
   player,
@@ -62,6 +85,22 @@ export const DotsBoard: React.FC<DotsBoardProps> = ({
     }),
     [step]
   );
+
+  // Latest move details for vivid opponent move animation
+  const lastMove = room.moves.length > 0 ? room.moves[room.moves.length - 1] : null;
+  const lastMoveOwner = lastMove ? room.players.find((p) => p.id === lastMove.playerId) : null;
+  const lastMoveOwnerColor = lastMoveOwner
+    ? PLAYER_COLORS[lastMoveOwner.colorIndex % PLAYER_COLORS.length]
+    : null;
+  const isOpponentLastMove = Boolean(lastMove && lastMove.playerId !== player.id);
+
+  const lastLineParsed = room.lastDrawnLineId ? parseLineCoords(room.lastDrawnLineId) : null;
+  const lastDot1Pos = lastLineParsed ? getDotSvgPos(lastLineParsed.d1.r, lastLineParsed.d1.c) : null;
+  const lastDot2Pos = lastLineParsed ? getDotSvgPos(lastLineParsed.d2.r, lastLineParsed.d2.c) : null;
+  const lastLineMidPos =
+    lastDot1Pos && lastDot2Pos
+      ? { x: (lastDot1Pos.x + lastDot2Pos.x) / 2, y: (lastDot1Pos.y + lastDot2Pos.y) / 2 }
+      : null;
 
   // Convert browser client pointer coordinates (mouse/touch) into SVG virtual coords
   const getSvgCoordinates = useCallback((clientX: number, clientY: number) => {
@@ -325,6 +364,15 @@ export const DotsBoard: React.FC<DotsBoardProps> = ({
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerCancel}
         >
+          <defs>
+            <filter id="last-move-glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
           {/* 1. RENDER CLAIMED BOXES ONLY (No "1 LEFT!" hints) */}
           {Array.from({ length: boxRows }).map((_, r) =>
             Array.from({ length: boxCols }).map((_, c) => {
@@ -408,25 +456,55 @@ export const DotsBoard: React.FC<DotsBoardProps> = ({
 
               return (
                 <g key={lineId} className="pointer-events-none">
-                  <line
-                    x1={x1 + 4}
-                    y1={y1}
-                    x2={x2 - 4}
-                    y2={y2}
-                    stroke={ownerColor?.primary || '#3b82f6'}
-                    strokeWidth={isLastDrawn ? 7 : 6}
-                    strokeLinecap="round"
-                  />
                   {isLastDrawn && (
+                    <>
+                      {/* Ambient glowing aura */}
+                      <line
+                        x1={x1 + 4}
+                        y1={y1}
+                        x2={x2 - 4}
+                        y2={y2}
+                        stroke={isOpponentLastMove ? '#f59e0b' : (ownerColor?.primary || '#3b82f6')}
+                        strokeWidth={16}
+                        strokeOpacity={0.4}
+                        strokeLinecap="round"
+                        filter="url(#last-move-glow)"
+                        className="animate-pulse"
+                      />
+                      {/* High-visibility colored line */}
+                      <line
+                        x1={x1 + 4}
+                        y1={y1}
+                        x2={x2 - 4}
+                        y2={y2}
+                        stroke={isOpponentLastMove ? '#f59e0b' : (ownerColor?.primary || '#3b82f6')}
+                        strokeWidth={8.5}
+                        strokeLinecap="round"
+                      />
+                      {/* Animated energy core stroke */}
+                      <line
+                        x1={x1 + 4}
+                        y1={y1}
+                        x2={x2 - 4}
+                        y2={y2}
+                        stroke="#ffffff"
+                        strokeWidth={3}
+                        strokeLinecap="round"
+                        strokeDasharray="8 6"
+                        strokeOpacity={0.95}
+                        className="animate-pulse"
+                      />
+                    </>
+                  )}
+                  {!isLastDrawn && (
                     <line
                       x1={x1 + 4}
                       y1={y1}
                       x2={x2 - 4}
                       y2={y2}
-                      stroke="#ffffff"
-                      strokeWidth={2}
+                      stroke={ownerColor?.primary || '#3b82f6'}
+                      strokeWidth={6}
                       strokeLinecap="round"
-                      strokeOpacity={0.8}
                     />
                   )}
                 </g>
@@ -453,25 +531,55 @@ export const DotsBoard: React.FC<DotsBoardProps> = ({
 
               return (
                 <g key={lineId} className="pointer-events-none">
-                  <line
-                    x1={x1}
-                    y1={y1 + 4}
-                    x2={x2}
-                    y2={y2 - 4}
-                    stroke={ownerColor?.primary || '#3b82f6'}
-                    strokeWidth={isLastDrawn ? 7 : 6}
-                    strokeLinecap="round"
-                  />
                   {isLastDrawn && (
+                    <>
+                      {/* Ambient glowing aura */}
+                      <line
+                        x1={x1}
+                        y1={y1 + 4}
+                        x2={x2}
+                        y2={y2 - 4}
+                        stroke={isOpponentLastMove ? '#f59e0b' : (ownerColor?.primary || '#3b82f6')}
+                        strokeWidth={16}
+                        strokeOpacity={0.4}
+                        strokeLinecap="round"
+                        filter="url(#last-move-glow)"
+                        className="animate-pulse"
+                      />
+                      {/* High-visibility colored line */}
+                      <line
+                        x1={x1}
+                        y1={y1 + 4}
+                        x2={x2}
+                        y2={y2 - 4}
+                        stroke={isOpponentLastMove ? '#f59e0b' : (ownerColor?.primary || '#3b82f6')}
+                        strokeWidth={8.5}
+                        strokeLinecap="round"
+                      />
+                      {/* Animated energy core stroke */}
+                      <line
+                        x1={x1}
+                        y1={y1 + 4}
+                        x2={x2}
+                        y2={y2 - 4}
+                        stroke="#ffffff"
+                        strokeWidth={3}
+                        strokeLinecap="round"
+                        strokeDasharray="8 6"
+                        strokeOpacity={0.95}
+                        className="animate-pulse"
+                      />
+                    </>
+                  )}
+                  {!isLastDrawn && (
                     <line
                       x1={x1}
                       y1={y1 + 4}
                       x2={x2}
                       y2={y2 - 4}
-                      stroke="#ffffff"
-                      strokeWidth={2}
+                      stroke={ownerColor?.primary || '#3b82f6'}
+                      strokeWidth={6}
                       strokeLinecap="round"
-                      strokeOpacity={0.8}
                     />
                   )}
                 </g>
@@ -581,6 +689,90 @@ export const DotsBoard: React.FC<DotsBoardProps> = ({
                 </g>
               );
             })
+          )}
+
+          {/* 7. VISUAL OPPONENT / LATEST MOVE CONNECTION HIGHLIGHT */}
+          {lastLineParsed && lastDot1Pos && lastDot2Pos && (
+            <g className="pointer-events-none select-none">
+              {/* Dot 1 expanding radar ripple */}
+              <circle
+                cx={lastDot1Pos.x}
+                cy={lastDot1Pos.y}
+                r={18}
+                fill="none"
+                stroke={isOpponentLastMove ? '#f59e0b' : (lastMoveOwnerColor?.primary || '#3b82f6')}
+                strokeWidth={2.5}
+                className="animate-ping"
+                opacity={0.8}
+              />
+              {/* Dot 1 halo ring */}
+              <circle
+                cx={lastDot1Pos.x}
+                cy={lastDot1Pos.y}
+                r={12}
+                fill={`${isOpponentLastMove ? '#f59e0b' : (lastMoveOwnerColor?.primary || '#3b82f6')}35`}
+                stroke={isOpponentLastMove ? '#f59e0b' : (lastMoveOwnerColor?.primary || '#3b82f6')}
+                strokeWidth={2.5}
+              />
+
+              {/* Dot 2 expanding radar ripple */}
+              <circle
+                cx={lastDot2Pos.x}
+                cy={lastDot2Pos.y}
+                r={18}
+                fill="none"
+                stroke={isOpponentLastMove ? '#f59e0b' : (lastMoveOwnerColor?.primary || '#3b82f6')}
+                strokeWidth={2.5}
+                className="animate-ping"
+                opacity={0.8}
+              />
+              {/* Dot 2 halo ring */}
+              <circle
+                cx={lastDot2Pos.x}
+                cy={lastDot2Pos.y}
+                r={12}
+                fill={`${isOpponentLastMove ? '#f59e0b' : (lastMoveOwnerColor?.primary || '#3b82f6')}35`}
+                stroke={isOpponentLastMove ? '#f59e0b' : (lastMoveOwnerColor?.primary || '#3b82f6')}
+                strokeWidth={2.5}
+              />
+
+              {/* Floating Tag Badge directly at the connection */}
+              {lastLineMidPos && lastMove && (
+                <g
+                  transform={`translate(${lastLineMidPos.x}, ${
+                    lastLineParsed.isHoriz
+                      ? lastLineMidPos.y - 18
+                      : lastLineMidPos.y
+                  })`}
+                  className="animate-bounce"
+                >
+                  <rect
+                    x={-40}
+                    y={-12}
+                    width={80}
+                    height={22}
+                    rx={11}
+                    fill="#0f172a"
+                    fillOpacity={0.92}
+                    stroke={isOpponentLastMove ? '#f59e0b' : (lastMoveOwnerColor?.primary || '#3b82f6')}
+                    strokeWidth={1.5}
+                  />
+                  <text
+                    x={0}
+                    y={3.5}
+                    textAnchor="middle"
+                    fontSize={10}
+                    fontWeight="800"
+                    fill="#ffffff"
+                    fontFamily="sans-serif"
+                  >
+                    {isOpponentLastMove
+                      ? `⚡ ${lastMove.playerName.slice(0, 6)}`
+                      : '✓ YOU'}
+                  </text>
+                </g>
+              )}
+            </g>
           )}
         </svg>
 

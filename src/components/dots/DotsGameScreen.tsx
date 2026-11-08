@@ -25,6 +25,15 @@ interface DotsGameScreenProps {
   onLeaveRoom: () => void;
 }
 
+function formatLineDescription(lineId: string): string {
+  const parts = lineId.split('-');
+  if (parts.length !== 3) return lineId;
+  const isHoriz = parts[0] === 'h';
+  const r = parseInt(parts[1], 10) + 1;
+  const c = parseInt(parts[2], 10) + 1;
+  return isHoriz ? `Dot (${r}, ${c}) ↔ (${r}, ${c + 1})` : `Dot (${r}, ${c}) ↕ (${r + 1}, ${c})`;
+}
+
 export const DotsGameScreen: React.FC<DotsGameScreenProps> = ({
   room,
   player,
@@ -42,6 +51,13 @@ export const DotsGameScreen: React.FC<DotsGameScreenProps> = ({
   const isMyTurn = room.status === 'PLAYING' && room.currentTurnPlayerId === player.id;
   const activePlayer = room.players.find((p) => p.id === room.currentTurnPlayerId);
   const activeColor = activePlayer ? PLAYER_COLORS[activePlayer.colorIndex % PLAYER_COLORS.length] : PLAYER_COLORS[0];
+
+  const lastMove = room.moves.length > 0 ? room.moves[room.moves.length - 1] : null;
+  const lastMoveOwner = lastMove ? room.players.find((p) => p.id === lastMove.playerId) : null;
+  const lastMoveOwnerColor = lastMoveOwner
+    ? PLAYER_COLORS[lastMoveOwner.colorIndex % PLAYER_COLORS.length]
+    : null;
+  const isOpponentLastMove = Boolean(lastMove && lastMove.playerId !== player.id);
 
   const handleToggleMute = () => {
     const next = !isMuted;
@@ -190,6 +206,59 @@ export const DotsGameScreen: React.FC<DotsGameScreenProps> = ({
             )}
           </div>
         </div>
+
+        {/* Latest Move Alert Banner (Visually Highlights Opponent Connections) */}
+        {lastMove && (
+          <div
+            className={`w-full max-w-xl mb-3.5 px-3.5 py-2.5 rounded-2xl border flex items-center justify-between text-xs transition-all shadow-xs ${
+              isOpponentLastMove
+                ? 'bg-amber-50/90 border-amber-300 ring-2 ring-amber-400/20 text-slate-900 animate-pop'
+                : 'bg-white border-slate-200 text-slate-700'
+            }`}
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-base shrink-0 border shadow-2xs"
+                style={{
+                  borderColor: lastMoveOwnerColor?.primary || '#3b82f6',
+                  backgroundColor: `${lastMoveOwnerColor?.primary || '#3b82f6'}18`,
+                }}
+              >
+                {getAvatarEmoji(lastMoveOwner?.avatar || '')}
+              </div>
+              <div className="truncate">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-extrabold text-slate-900">
+                    {isOpponentLastMove ? `${lastMove.playerName}'s Move` : 'Your Move'}
+                  </span>
+                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-black/5 border border-slate-200 text-slate-700">
+                    {formatLineDescription(lastMove.lineId)}
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-500 font-medium mt-0.5">
+                  {lastMove.boxesCompleted > 0 ? (
+                    <span className="font-extrabold text-emerald-600">
+                      🎁 Claimed {lastMove.boxesCompleted} box{lastMove.boxesCompleted > 1 ? 'es' : ''}! Extra turn active!
+                    </span>
+                  ) : (
+                    <span>Connected two dots on the grid</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0 ml-2">
+              {isOpponentLastMove && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400 text-slate-950 animate-pulse shadow-2xs">
+                  Opponent Move
+                </span>
+              )}
+              <span className="text-[11px] font-mono font-bold text-slate-400">
+                #{lastMove.moveIndex}
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Live Scoreboard Strip */}
         <div className="w-full max-w-xl mb-4 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
