@@ -27,7 +27,7 @@ export function useRoomSync<TRoom>({
   playerId,
   buildFetchUrl,
   onRoomSnapshot,
-  pollIntervalMs = 2500,
+  pollIntervalMs = 750,
 }: UseRoomSyncOptions<TRoom>) {
   const onSnapshotRef = useRef(onRoomSnapshot);
   onSnapshotRef.current = onRoomSnapshot;
@@ -40,9 +40,7 @@ export function useRoomSync<TRoom>({
   const pendingRef = useRef<boolean>(false);
 
   const fetchLatest = useCallback(async (code: string, pid: string, minVersion?: number) => {
-    if (minVersion !== undefined && minVersion <= lastVersionRef.current) {
-      return;
-    }
+    if (minVersion !== undefined && minVersion <= lastVersionRef.current) return;
     if (inFlightRef.current) {
       pendingRef.current = true;
       return;
@@ -84,10 +82,8 @@ export function useRoomSync<TRoom>({
     let cancelled = false;
     const supabase = getBrowserSupabase();
 
-    // Initial snapshot fetch
     void fetchLatest(roomCode, playerId);
 
-    // 1. Subscribe to Supabase Realtime Broadcast channel for instant updates
     const channel = supabase
       ? supabase
           .channel(`room-${roomCode}`)
@@ -99,7 +95,6 @@ export function useRoomSync<TRoom>({
           .subscribe()
       : null;
 
-    // 2. Fallback poll + visibility refresh so no update is ever missed
     const interval = setInterval(() => {
       if (!cancelled && document.visibilityState === 'visible') {
         void fetchLatest(roomCode, playerId);
@@ -117,9 +112,7 @@ export function useRoomSync<TRoom>({
       cancelled = true;
       clearInterval(interval);
       window.removeEventListener('visibilitychange', onVisibility);
-      if (channel && supabase) {
-        void supabase.removeChannel(channel);
-      }
+      if (channel && supabase) void supabase.removeChannel(channel);
     };
   }, [roomCode, playerId, fetchLatest, pollIntervalMs]);
 
