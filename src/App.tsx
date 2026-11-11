@@ -22,8 +22,11 @@ import { PaperGunTitleScreen } from './components/papergun/PaperGunTitleScreen';
 import { PaperGunLobbyScreen } from './components/papergun/PaperGunLobbyScreen';
 import { PaperGunGameScreen } from './components/papergun/PaperGunGameScreen';
 import { PaperGunVictoryModal } from './components/papergun/PaperGunVictoryModal';
+import { useTicTacToeRealtime } from './hooks/useTicTacToeRealtime';
+import { TicTacToeLandingScreen } from './components/tictactoe/TicTacToeLandingScreen';
+import { TicTacToeRoomScreen } from './components/tictactoe/TicTacToeRoomScreen';
 
-type ActiveView = 'HOME' | 'BINGO' | 'DOTS' | 'PAPERGUN';
+type ActiveView = 'HOME' | 'BINGO' | 'DOTS' | 'PAPERGUN' | 'TICTACTOE';
 
 export default function App() {
   const [activeView, setActiveView] = useState<ActiveView>('HOME');
@@ -32,6 +35,7 @@ export default function App() {
   const bingo = useBingoRealtime();
   const dots = useDotsRealtime();
   const paperGun = usePaperGunRealtime();
+  const ticTacToe = useTicTacToeRealtime();
 
   // If a session was restored from storage, route directly to the active match
   useEffect(() => {
@@ -52,14 +56,20 @@ export default function App() {
     }
   }, [paperGun.room, paperGun.player]);
 
-  // Handle URL query parameters for direct invite links (?room=CODE or ?game=dots&room=CODE)
+  useEffect(() => {
+    if (ticTacToe.room && ticTacToe.player) {
+      setActiveView('TICTACTOE');
+    }
+  }, [ticTacToe.room, ticTacToe.player]);
+
+  // Handle URL query parameters for direct invite links (?room=CODE or ?game=tictactoe&room=CODE)
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
     const roomParam = params.get('room');
     const gameParam = params.get('game');
 
-    if (roomParam && !bingo.room && !dots.room && !paperGun.room) {
+    if (roomParam && !bingo.room && !dots.room && !paperGun.room && !ticTacToe.room) {
       const code = roomParam.toUpperCase();
       const storedName =
         localStorage.getItem('party_username') ||
@@ -79,6 +89,9 @@ export default function App() {
       } else if (gameParam === 'bingo') {
         setActiveView('BINGO');
         bingo.joinRoom(code, storedName, storedAvatar);
+      } else if (gameParam === 'tictactoe') {
+        setActiveView('TICTACTOE');
+        ticTacToe.joinRoom(code, storedName, storedAvatar);
       } else {
         fetch(`/api/rooms/inspect/${code}`)
           .then((r) => r.json())
@@ -92,6 +105,9 @@ export default function App() {
             } else if (data.gameType === 'bingo') {
               setActiveView('BINGO');
               bingo.joinRoom(code, storedName, storedAvatar);
+            } else if (data.gameType === 'tictactoe') {
+              setActiveView('TICTACTOE');
+              ticTacToe.joinRoom(code, storedName, storedAvatar);
             }
           })
           .catch(() => {
@@ -99,7 +115,16 @@ export default function App() {
           });
       }
     }
-  }, [bingo.room, dots.room, paperGun.room, bingo, dots, paperGun]);
+  }, [
+    bingo.room,
+    dots.room,
+    paperGun.room,
+    ticTacToe.room,
+    bingo.joinRoom,
+    dots.joinRoom,
+    paperGun.joinRoom,
+    ticTacToe.joinRoom,
+  ]);
 
   // Leave room and return to home cleanly
   const handleLeaveBingo = async (): Promise<void> => {
@@ -114,6 +139,11 @@ export default function App() {
 
   const handleLeavePaperGun = async (): Promise<void> => {
     await paperGun.leaveRoom();
+    setActiveView('HOME');
+  };
+
+  const handleLeaveTicTacToe = async (): Promise<void> => {
+    await ticTacToe.leaveRoom();
     setActiveView('HOME');
   };
 
@@ -146,6 +176,9 @@ export default function App() {
       } else if (data.gameType === 'dots') {
         setActiveView('DOTS');
         dots.joinRoom(code, storedName, storedAvatar);
+      } else if (data.gameType === 'tictactoe') {
+        setActiveView('TICTACTOE');
+        ticTacToe.joinRoom(code, storedName, storedAvatar);
       } else {
         setGlobalError(`Unrecognized room code "${code}".`);
       }
@@ -157,7 +190,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col font-sans relative selection:bg-blue-600 selection:text-white">
       {/* 1. HOME SCREEN: SELECT A GAME */}
-      {activeView === 'HOME' && !bingo.room && !dots.room && !paperGun.room && (
+      {activeView === 'HOME' && !bingo.room && !dots.room && !paperGun.room && !ticTacToe.room && (
         <GameHub
           onOpenBingoLanding={() => {
             setGlobalError(null);
@@ -171,17 +204,21 @@ export default function App() {
             setGlobalError(null);
             setActiveView('PAPERGUN');
           }}
+          onOpenTicTacToeLanding={() => {
+            setGlobalError(null);
+            setActiveView('TICTACTOE');
+          }}
           onJoinRoomDirect={handleJoinRoomDirect}
-          errorMessage={globalError || bingo.error || dots.error || paperGun.error}
+          errorMessage={globalError || bingo.error || dots.error || paperGun.error || ticTacToe.error}
           onClearError={() => {
             setGlobalError(null);
             bingo.clearError();
             dots.clearError();
             paperGun.clearError();
+            ticTacToe.clearError();
           }}
         />
       )}
-
       {/* 2. BINGO 25 VIEWS */}
       {activeView === 'BINGO' && (
         <>
@@ -328,9 +365,36 @@ export default function App() {
                   isLoading={paperGun.isLoading}
                 />
               )}
+
             </>
           )}
         </>
+      )}
+
+      {activeView === 'TICTACTOE' && (
+        !ticTacToe.room || !ticTacToe.player ? (
+          <TicTacToeLandingScreen
+            onCreateRoom={ticTacToe.createRoom}
+            onJoinRoom={ticTacToe.joinRoom}
+            onBack={() => setActiveView('HOME')}
+            isLoading={ticTacToe.isLoading}
+            errorMessage={ticTacToe.error}
+            onClearError={ticTacToe.clearError}
+          />
+        ) : (
+          <TicTacToeRoomScreen
+            room={ticTacToe.room}
+            player={ticTacToe.player}
+            isLoading={ticTacToe.isLoading}
+            errorMessage={ticTacToe.error}
+            onClearError={ticTacToe.clearError}
+            onToggleReady={ticTacToe.toggleReady}
+            onStartGame={ticTacToe.startGame}
+            onPlayCell={ticTacToe.playCell}
+            onRematch={ticTacToe.rematch}
+            onLeaveRoom={handleLeaveTicTacToe}
+          />
+        )
       )}
     </div>
   );

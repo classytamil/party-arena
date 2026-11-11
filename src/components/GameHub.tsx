@@ -13,6 +13,7 @@ interface GameHubProps {
   onOpenBingoLanding: () => void;
   onOpenDotsLanding: () => void;
   onOpenPaperGunLanding: () => void;
+  onOpenTicTacToeLanding: () => void;
   onJoinRoomDirect: (code: string) => void;
   errorMessage: string | null;
   onClearError: () => void;
@@ -22,6 +23,7 @@ export const GameHub: React.FC<GameHubProps> = ({
   onOpenBingoLanding,
   onOpenDotsLanding,
   onOpenPaperGunLanding,
+  onOpenTicTacToeLanding,
   onJoinRoomDirect,
   errorMessage,
   onClearError,
@@ -155,8 +157,8 @@ export const GameHub: React.FC<GameHubProps> = ({
           </div>
         )}
 
-        {/* 3-Game Showcase Grid */}
-        <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-6 max-w-5xl mb-10">
+        {/* Game Showcase Grid */}
+        <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mb-10">
           {/* 1. Bingo 25 Game Card */}
           <div
             onClick={() => {
@@ -187,6 +189,39 @@ export const GameHub: React.FC<GameHubProps> = ({
                 5×5 Number Rush · 5-Line Win
               </span>
               <div className="flex items-center gap-1 text-xs font-bold text-blue-600 group-hover:translate-x-1 transition-transform">
+                <span>Play</span>
+                <ArrowRight className="w-4 h-4" />
+              </div>
+            </div>
+          </div>
+
+          {/* Tic-Tac-Toe Game Card */}
+          <div
+            onClick={() => {
+              playClickSound();
+              onOpenTicTacToeLanding();
+            }}
+            className="group relative bg-white rounded-3xl border border-slate-200/90 shadow-md hover:shadow-2xl hover:-translate-y-1 transition-all duration-200 overflow-hidden cursor-pointer flex flex-col"
+          >
+            <div className="relative aspect-16/10 w-full overflow-hidden bg-gradient-to-br from-indigo-100 via-white to-rose-100">
+              <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 gap-1 p-8 text-3xl font-black text-indigo-600 sm:text-4xl">
+                {['X', '', 'O', '', 'X', '', 'O', '', 'X'].map((cell, index) => (
+                  <span key={index} className="grid place-items-center rounded-lg bg-white/80 shadow-sm">
+                    {cell}
+                  </span>
+                ))}
+              </div>
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/80 to-transparent p-5 pt-12 text-white">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-200">
+                  Classic Duel
+                </span>
+                <h2 className="text-2xl font-black tracking-tight">Tic-Tac-Toe</h2>
+              </div>
+            </div>
+
+            <div className="p-4 flex items-center justify-between border-t border-slate-100 bg-white">
+              <span className="text-xs font-semibold text-slate-600">3×3 · Two-player strategy</span>
+              <div className="flex items-center gap-1 text-xs font-bold text-indigo-600 group-hover:translate-x-1 transition-transform">
                 <span>Play</span>
                 <ArrowRight className="w-4 h-4" />
               </div>

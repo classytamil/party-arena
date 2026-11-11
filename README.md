@@ -1,10 +1,11 @@
 # Party Arena (Next.js + Supabase)
 
-Full-stack Next.js (App Router) + Supabase conversion of **Party Arena** featuring three real-time multiplayer party games:
+Full-stack Next.js (App Router) + Supabase conversion of **Party Arena** featuring four real-time multiplayer party games:
 
 1. **Bingo 25** – 5×5 multiplayer Bingo with secret cards, player/host number calling, and AI bots.
 2. **Dots & Boxes** – Classic grid line-drawing game (4×4 to 9×9), combo turns, optional turn timers, and AI bots.
 3. **Paper Gun Battle** – 9-stage tactical sketch duel with dice choices, secret shields, and AI bots.
+4. **Tic-Tac-Toe** – Private two-player rooms, alternating X/O turns, win/draw detection, and rematch score tracking.
 
 ---
 
@@ -12,9 +13,10 @@ Full-stack Next.js (App Router) + Supabase conversion of **Party Arena** featuri
 
 ### 1. Create the Supabase table
 
-Open your project in the **Supabase Dashboard → SQL Editor** and run the migration in:
+Open your project in the **Supabase Dashboard → SQL Editor** and run the migrations in order:
 
 - [`supabase/migrations/0001_game_rooms.sql`](./supabase/migrations/0001_game_rooms.sql)
+- [`supabase/migrations/0002_add_tictactoe_game.sql`](./supabase/migrations/0002_add_tictactoe_game.sql)
 
 This creates the `public.game_rooms` table with Row Level Security enabled and locks down direct client access so secret state (opponent Bingo cards, Paper Gun shields) is only ever read by the server and sanitized per viewer.
 

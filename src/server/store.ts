@@ -12,7 +12,7 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-export type GameType = 'bingo' | 'dots' | 'papergun';
+export type GameType = 'bingo' | 'dots' | 'papergun' | 'tictactoe';
 
 export interface RoomRecord<T> {
   code: string;

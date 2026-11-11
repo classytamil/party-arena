@@ -1,7 +1,7 @@
 {
   "name": "Party Arena – Multiplayer Games",
   "short_name": "Party Arena",
-  "description": "Real-time multiplayer party game platform featuring Bingo 25, Dots & Boxes, and Paper Gun Battle.",
+  "description": "Real-time multiplayer party game platform featuring Bingo 25, Dots & Boxes, Paper Gun Battle, and Tic-Tac-Toe.",
   "start_url": "/",
   "id": "/",
   "scope": "/",
@@ -67,6 +67,18 @@
       "short_name": "Paper Gun",
       "description": "Play Paper Gun Battle Duel",
       "url": "/?game=papergun",
+      "icons": [
+        {
+          "src": "/icons/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Tic-Tac-Toe",
+      "short_name": "Tic-Tac-Toe",
+      "description": "Play two-player Tic-Tac-Toe",
+      "url": "/?game=tictactoe",
       "icons": [
         {
           "src": "/icons/icon-192x192.png",

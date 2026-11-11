@@ -3,7 +3,7 @@
 
 create table if not exists public.game_rooms (
   code        text primary key,
-  game        text not null check (game in ('bingo', 'dots', 'papergun')),
+  game        text not null check (game in ('bingo', 'dots', 'papergun', 'tictactoe')),
   state       jsonb not null,
   version     integer not null default 0,
   created_at  timestamptz not null default now(),

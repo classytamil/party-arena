@@ -10,9 +10,9 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'Party Arena – Multiplayer Bingo, Dots & Boxes, Paper Gun Battle',
+  title: 'Party Arena – Multiplayer Party Games',
   description:
-    'Real-time multiplayer party game platform with Bingo 25, Dots & Boxes, and Paper Gun Battle.',
+    'Real-time multiplayer party game platform with Bingo 25, Dots & Boxes, Paper Gun Battle, and Tic-Tac-Toe.',
   manifest: '/manifest.json',
   icons: {
     icon: [
