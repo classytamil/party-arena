@@ -1,4 +1,5 @@
 import {
+  calculateTicTacToeBotMove,
   getTicTacToeWinningCells,
   TicTacToePlayer,
   TicTacToeRoom,
@@ -9,6 +10,8 @@ import { json, randomId } from '../http';
 
 const GAME = 'tictactoe' as const;
 const ROOM_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const TICTACTOE_BOT_NAMES = ['Pixel Pete', 'Grid Bot', 'Retro Rex', 'Robo O', 'Neon Nova'];
+const TICTACTOE_BOT_AVATARS = ['alien', 'owl', 'dragon', 'panda', 'tiger'];
 
 function generateTicTacToeCode(): string {
   return Array.from({ length: 6 }, () =>
@@ -63,6 +66,7 @@ export async function createTicTacToeRoom(body: Record<string, any>) {
     draws: 0,
     isHost: true,
     isReady: true,
+    isBot: false,
   };
 
   const record = await insertRoom<TicTacToeRoom>(GAME, generateTicTacToeCode, (code) => ({
@@ -75,6 +79,55 @@ export async function createTicTacToeRoom(body: Record<string, any>) {
     winningCells: [],
     createdAt: Date.now(),
   }));
+  return json(roomView(record, host.id));
+}
+
+export async function quickplayTicTacToeRoom(body: Record<string, any>) {
+  const hostName = sanitizeName(body.playerName, 'Player 1');
+  const hostAvatar = sanitizeAvatar(body.avatar);
+  const host: TicTacToePlayer = {
+    id: randomId('p_'),
+    name: hostName,
+    avatar: hostAvatar,
+    symbol: null,
+    wins: 0,
+    draws: 0,
+    isHost: true,
+    isReady: true,
+    isBot: false,
+  };
+
+  const botName = TICTACTOE_BOT_NAMES[Math.floor(Math.random() * TICTACTOE_BOT_NAMES.length)];
+  const botAvatar = TICTACTOE_BOT_AVATARS[Math.floor(Math.random() * TICTACTOE_BOT_AVATARS.length)];
+  const bot: TicTacToePlayer = {
+    id: randomId('bot_'),
+    name: botName,
+    avatar: botAvatar,
+    symbol: null,
+    wins: 0,
+    draws: 0,
+    isHost: false,
+    isReady: true,
+    isBot: true,
+  };
+
+  const xPlayerIndex = Math.floor(Math.random() * 2);
+  const players = [host, bot];
+  players.forEach((player, index) => {
+    player.symbol = index === xPlayerIndex ? 'X' : 'O';
+  });
+
+  const record = await insertRoom<TicTacToeRoom>(GAME, generateTicTacToeCode, (code) => ({
+    code,
+    status: 'PLAYING',
+    players,
+    board: Array(9).fill(null),
+    currentTurnPlayerId: players[xPlayerIndex].id,
+    winnerId: null,
+    winningCells: [],
+    createdAt: Date.now(),
+  }));
+
   return json(roomView(record, host.id));
 }
 
@@ -99,6 +152,7 @@ export async function joinTicTacToeRoom(body: Record<string, any>) {
         draws: 0,
         isHost: false,
         isReady: false,
+        isBot: false,
       };
       room.players.push(joinedPlayer);
     },
@@ -128,6 +182,30 @@ export async function ticTacToeAction(
         const player = room.players.find((entry) => entry.id === playerId);
         if (!player) throw new GameError(404, 'Player not found in room.');
         player.isReady = !player.isReady;
+      });
+      return json(roomView(record!, playerId));
+    }
+
+    case 'add-bot': {
+      const { record } = await mutateRoom<TicTacToeRoom>(code, GAME, (room) => {
+        if (room.status !== 'WAITING') throw new GameError(400, 'The lobby is no longer open.');
+        if (room.players.length >= 2) throw new GameError(400, 'Room is already full.');
+        const host = room.players.find((entry) => entry.id === playerId);
+        if (!host?.isHost) throw new GameError(403, 'Only the room host can add a bot.');
+
+        const botName = TICTACTOE_BOT_NAMES[Math.floor(Math.random() * TICTACTOE_BOT_NAMES.length)];
+        const botAvatar = TICTACTOE_BOT_AVATARS[Math.floor(Math.random() * TICTACTOE_BOT_AVATARS.length)];
+        room.players.push({
+          id: randomId('bot_'),
+          name: botName,
+          avatar: botAvatar,
+          symbol: null,
+          wins: 0,
+          draws: 0,
+          isHost: false,
+          isReady: true,
+          isBot: true,
+        });
       });
       return json(roomView(record!, playerId));
     }
@@ -176,6 +254,38 @@ export async function ticTacToeAction(
       return json(roomView(record!, playerId));
     }
 
+    case 'tick': {
+      const { record } = await mutateRoom<TicTacToeRoom>(code, GAME, (room) => {
+        if (room.status !== 'PLAYING') return 'noop';
+        const curPlayer = room.players.find((entry) => entry.id === room.currentTurnPlayerId);
+        if (!curPlayer || !curPlayer.isBot || !curPlayer.symbol) return 'noop';
+
+        const index = calculateTicTacToeBotMove(room.board, curPlayer.symbol);
+        if (index < 0 || index > 8 || room.board[index] !== null) return 'noop';
+
+        room.board[index] = curPlayer.symbol;
+
+        const winningCells = getTicTacToeWinningCells(room.board);
+        if (winningCells.length) {
+          room.winningCells = winningCells;
+          room.winnerId = curPlayer.id;
+          curPlayer.wins += 1;
+          room.status = 'COMPLETED';
+          room.currentTurnPlayerId = null;
+        } else if (room.board.every((cell) => cell !== null)) {
+          room.players.forEach((entry) => {
+            entry.draws += 1;
+          });
+          room.status = 'COMPLETED';
+          room.currentTurnPlayerId = null;
+        } else {
+          room.currentTurnPlayerId =
+            room.players.find((entry) => entry.id !== curPlayer.id)?.id ?? null;
+        }
+      });
+      return json(roomView(record!, playerId));
+    }
+
     case 'rematch': {
       const { record } = await mutateRoom<TicTacToeRoom>(code, GAME, (room) => {
         const player = room.players.find((entry) => entry.id === playerId);
@@ -198,7 +308,7 @@ export async function ticTacToeAction(
           const index = room.players.findIndex((entry) => entry.id === playerId);
           if (index === -1) return 'noop';
           room.players.splice(index, 1);
-          if (room.players.length === 0) return 'delete';
+          if (room.players.length === 0 || room.players.every((p) => p.isBot)) return 'delete';
 
           room.players[0].isHost = true;
           room.players[0].isReady = true;

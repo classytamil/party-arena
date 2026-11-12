@@ -49,6 +49,43 @@ export function useTicTacToeRealtime() {
     return () => window.removeEventListener('pagehide', leaveOnUnload);
   }, [room?.code, player?.id]);
 
+  // Drive bot turns automatically from the client
+  useEffect(() => {
+    if (!room || !player || room.status !== 'PLAYING') return;
+    const activePlayer = room.players.find((entry) => entry.id === room.currentTurnPlayerId);
+    if (!activePlayer || !activePlayer.isBot) return;
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `/api/tictactoe/rooms/${encodeURIComponent(room.code)}/tick`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ playerId: player.id }),
+          }
+        );
+        const data = await response.json();
+        if (data.success && data.room) {
+          noteVersion(data.version);
+          handleStateUpdate(data.room);
+        }
+      } catch {
+        // Next broadcast/poll will retry
+      }
+    }, 600);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    room?.code,
+    room?.status,
+    room?.currentTurnPlayerId,
+    room?.board,
+    player?.id,
+    handleStateUpdate,
+    noteVersion,
+  ]);
+
   useEffect(() => {
     const saved = sessionStorage.getItem(SESSION_KEY);
     if (!saved) return;
@@ -113,6 +150,16 @@ export function useTicTacToeRealtime() {
         '/api/tictactoe/rooms',
         { playerName, avatar },
         'Could not create room'
+      ),
+    [enterRoom]
+  );
+
+  const quickPlayVsBots = useCallback(
+    (playerName: string, avatar: string) =>
+      enterRoom(
+        '/api/tictactoe/rooms/quickplay',
+        { playerName, avatar },
+        'Could not start match vs bot'
       ),
     [enterRoom]
   );
@@ -182,9 +229,11 @@ export function useTicTacToeRealtime() {
     isLoading,
     error,
     createRoom,
+    quickPlayVsBots,
     joinRoom,
     toggleReady: () => runAction('ready'),
     startGame: () => runAction('start'),
+    addBot: () => runAction('add-bot'),
     playCell: (index: number) => runAction('move', { index }),
     rematch: () => runAction('rematch'),
     leaveRoom,

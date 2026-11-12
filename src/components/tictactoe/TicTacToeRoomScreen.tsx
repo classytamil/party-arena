@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Check, RotateCcw, Share2, Trophy } from 'lucide-react';
+import { ArrowLeft, Bot, Check, RotateCcw, Share2, Trophy } from 'lucide-react';
 import { AVATAR_OPTIONS } from '../../types/bingo';
 import { TicTacToePlayer, TicTacToeRoom } from '../../types/ticTacToe';
 import { playClickSound } from '../../utils/sound';
@@ -12,6 +12,7 @@ interface TicTacToeRoomScreenProps {
   onClearError: () => void;
   onToggleReady: () => void;
   onStartGame: () => void;
+  onAddBot?: () => void;
   onPlayCell: (index: number) => void;
   onRematch: () => void;
   onLeaveRoom: () => void;
@@ -25,6 +26,7 @@ export const TicTacToeRoomScreen: React.FC<TicTacToeRoomScreenProps> = ({
   onClearError,
   onToggleReady,
   onStartGame,
+  onAddBot,
   onPlayCell,
   onRematch,
   onLeaveRoom,
@@ -88,7 +90,14 @@ export const TicTacToeRoomScreen: React.FC<TicTacToeRoomScreenProps> = ({
               {[player, opponent].map((entry, index) => (
                 <div key={entry?.id ?? `waiting-${index}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center">
                   <div className="text-3xl">{entry ? avatarEmoji(entry.avatar) : '⏳'}</div>
-                  <div className="mt-2 truncate font-bold">{entry?.name ?? 'Waiting for player'}</div>
+                  <div className="mt-2 truncate font-bold flex items-center justify-center gap-1">
+                    <span>{entry?.name ?? 'Waiting for player'}</span>
+                    {entry?.isBot && (
+                      <span className="inline-flex items-center gap-0.5 rounded-md bg-indigo-100 px-1.5 py-0.5 text-[10px] font-black text-indigo-700">
+                        <Bot className="h-3 w-3" /> Bot
+                      </span>
+                    )}
+                  </div>
                   <div className={`mt-1 text-xs font-semibold ${entry?.isReady ? 'text-emerald-600' : 'text-slate-400'}`}>
                     {entry?.isReady ? 'Ready' : entry ? 'Not ready' : 'Invite a friend'}
                   </div>
@@ -96,6 +105,22 @@ export const TicTacToeRoomScreen: React.FC<TicTacToeRoomScreenProps> = ({
                 </div>
               ))}
             </div>
+
+            {player.isHost && room.players.length < 2 && onAddBot && (
+              <div className="mb-4 text-center">
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => {
+                    playClickSound();
+                    onAddBot();
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
+                >
+                  <Bot className="h-4 w-4" /> + Add AI Bot
+                </button>
+              </div>
+            )}
 
             <div className="flex flex-col gap-2 sm:flex-row">
               <button
@@ -121,7 +146,7 @@ export const TicTacToeRoomScreen: React.FC<TicTacToeRoomScreenProps> = ({
               )}
             </div>
             {player.isHost && room.players.length < 2 && (
-              <p className="mt-3 text-center text-xs text-slate-400">A second player must join before the game can start.</p>
+              <p className="mt-3 text-center text-xs text-slate-400">Add a bot or wait for a friend before starting.</p>
             )}
           </section>
         ) : (
@@ -132,7 +157,14 @@ export const TicTacToeRoomScreen: React.FC<TicTacToeRoomScreenProps> = ({
                 {index === 1 && <div className="px-1 text-xs font-black text-slate-300">VS</div>}
                 <div className={`min-w-0 rounded-2xl border p-3 text-center ${entry?.id === room.currentTurnPlayerId ? 'border-indigo-300 bg-indigo-50 ring-2 ring-indigo-100' : 'border-slate-200 bg-slate-50'}`}>
                   <div className="text-2xl">{entry ? avatarEmoji(entry.avatar) : '👤'}</div>
-                  <div className="truncate text-sm font-bold">{entry?.name ?? 'Opponent'}</div>
+                  <div className="truncate text-sm font-bold flex items-center justify-center gap-1">
+                    <span>{entry?.name ?? 'Opponent'}</span>
+                    {entry?.isBot && (
+                      <span className="inline-flex items-center gap-0.5 rounded-md bg-indigo-100 px-1 py-0.5 text-[10px] font-black text-indigo-700">
+                        <Bot className="h-2.5 w-2.5" /> Bot
+                      </span>
+                    )}
+                  </div>
                   <div className="font-black text-indigo-600">{entry?.symbol || '—'}</div>
                   <div className="text-[11px] text-slate-500">🏆 {entry?.wins ?? 0} · Draws {entry?.draws ?? 0}</div>
                 </div>
@@ -147,7 +179,9 @@ export const TicTacToeRoomScreen: React.FC<TicTacToeRoomScreenProps> = ({
                   : 'It’s a draw!'
                 : isMyTurn
                   ? 'Your turn'
-                  : `${currentPlayer?.name ?? 'Opponent'}’s turn`}
+                  : currentPlayer?.isBot
+                    ? `${currentPlayer.name} (Bot) is thinking…`
+                    : `${currentPlayer?.name ?? 'Opponent'}’s turn`}
             </div>
 
             <div className="mx-auto grid aspect-square w-full max-w-[390px] grid-cols-3 gap-2 rounded-2xl bg-slate-200 p-2 sm:gap-3 sm:p-3">

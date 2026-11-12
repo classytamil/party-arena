@@ -375,6 +375,7 @@ export default function App() {
         !ticTacToe.room || !ticTacToe.player ? (
           <TicTacToeLandingScreen
             onCreateRoom={ticTacToe.createRoom}
+            onQuickPlayVsBots={ticTacToe.quickPlayVsBots}
             onJoinRoom={ticTacToe.joinRoom}
             onBack={() => setActiveView('HOME')}
             isLoading={ticTacToe.isLoading}
@@ -390,6 +391,7 @@ export default function App() {
             onClearError={ticTacToe.clearError}
             onToggleReady={ticTacToe.toggleReady}
             onStartGame={ticTacToe.startGame}
+            onAddBot={ticTacToe.addBot}
             onPlayCell={ticTacToe.playCell}
             onRematch={ticTacToe.rematch}
             onLeaveRoom={handleLeaveTicTacToe}

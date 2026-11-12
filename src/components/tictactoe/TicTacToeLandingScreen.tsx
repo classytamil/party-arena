@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { ArrowLeft, ArrowRight, Hash, Users } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Bot, Hash, Users } from 'lucide-react';
 import { AVATAR_OPTIONS } from '../../types/bingo';
 import { playClickSound } from '../../utils/sound';
 
 interface TicTacToeLandingScreenProps {
   onCreateRoom: (name: string, avatar: string) => void;
+  onQuickPlayVsBots: (name: string, avatar: string) => void;
   onJoinRoom: (code: string, name: string, avatar: string) => void;
   onBack: () => void;
   isLoading: boolean;
@@ -14,6 +15,7 @@ interface TicTacToeLandingScreenProps {
 
 export const TicTacToeLandingScreen: React.FC<TicTacToeLandingScreenProps> = ({
   onCreateRoom,
+  onQuickPlayVsBots,
   onJoinRoom,
   onBack,
   isLoading,
@@ -94,6 +96,19 @@ export const TicTacToeLandingScreen: React.FC<TicTacToeLandingScreenProps> = ({
               ))}
             </select>
           </div>
+
+          <button
+            type="button"
+            disabled={isLoading}
+            onClick={() => {
+              playClickSound();
+              onQuickPlayVsBots(saveProfile(), avatar);
+            }}
+            className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-3.5 text-sm font-extrabold text-white shadow-md hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50"
+          >
+            <Bot className="h-4 w-4" />
+            {isLoading ? 'Starting…' : 'Play Instant Match (vs Bot)'}
+          </button>
 
           <button
             type="button"
