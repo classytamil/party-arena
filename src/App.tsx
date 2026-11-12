@@ -24,7 +24,9 @@ import { PaperGunGameScreen } from './components/papergun/PaperGunGameScreen';
 import { PaperGunVictoryModal } from './components/papergun/PaperGunVictoryModal';
 import { useTicTacToeRealtime } from './hooks/useTicTacToeRealtime';
 import { TicTacToeLandingScreen } from './components/tictactoe/TicTacToeLandingScreen';
-import { TicTacToeRoomScreen } from './components/tictactoe/TicTacToeRoomScreen';
+import { TicTacToeLobbyScreen } from './components/tictactoe/TicTacToeLobbyScreen';
+import { TicTacToeGameScreen } from './components/tictactoe/TicTacToeGameScreen';
+import { TicTacToeVictoryModal } from './components/tictactoe/TicTacToeVictoryModal';
 
 type ActiveView = 'HOME' | 'BINGO' | 'DOTS' | 'PAPERGUN' | 'TICTACTOE';
 
@@ -371,32 +373,53 @@ export default function App() {
         </>
       )}
 
+      {/* 5. MULTIPLAYER TIC-TAC-TOE VIEWS */}
       {activeView === 'TICTACTOE' && (
-        !ticTacToe.room || !ticTacToe.player ? (
-          <TicTacToeLandingScreen
-            onCreateRoom={ticTacToe.createRoom}
-            onQuickPlayVsBots={ticTacToe.quickPlayVsBots}
-            onJoinRoom={ticTacToe.joinRoom}
-            onBack={() => setActiveView('HOME')}
-            isLoading={ticTacToe.isLoading}
-            errorMessage={ticTacToe.error}
-            onClearError={ticTacToe.clearError}
-          />
-        ) : (
-          <TicTacToeRoomScreen
-            room={ticTacToe.room}
-            player={ticTacToe.player}
-            isLoading={ticTacToe.isLoading}
-            errorMessage={ticTacToe.error}
-            onClearError={ticTacToe.clearError}
-            onToggleReady={ticTacToe.toggleReady}
-            onStartGame={ticTacToe.startGame}
-            onAddBot={ticTacToe.addBot}
-            onPlayCell={ticTacToe.playCell}
-            onRematch={ticTacToe.rematch}
-            onLeaveRoom={handleLeaveTicTacToe}
-          />
-        )
+        <>
+          {!ticTacToe.room || !ticTacToe.player ? (
+            <TicTacToeLandingScreen
+              onCreateRoom={ticTacToe.createRoom}
+              onQuickPlayVsBots={ticTacToe.quickPlayVsBots}
+              onJoinRoom={ticTacToe.joinRoom}
+              onBack={() => setActiveView('HOME')}
+              isLoading={ticTacToe.isLoading}
+              errorMessage={ticTacToe.error}
+              onClearError={ticTacToe.clearError}
+            />
+          ) : ticTacToe.room.status === 'WAITING' ? (
+            <TicTacToeLobbyScreen
+              room={ticTacToe.room}
+              player={ticTacToe.player}
+              onToggleReady={ticTacToe.toggleReady}
+              onAddBot={ticTacToe.addBot}
+              onStartGame={ticTacToe.startGame}
+              onLeaveRoom={handleLeaveTicTacToe}
+              isLoading={ticTacToe.isLoading}
+              errorMessage={ticTacToe.error}
+              onClearError={ticTacToe.clearError}
+            />
+          ) : (
+            <>
+              <TicTacToeGameScreen
+                room={ticTacToe.room}
+                player={ticTacToe.player}
+                onPlayCell={ticTacToe.playCell}
+                onLeaveRoom={handleLeaveTicTacToe}
+                isLoading={ticTacToe.isLoading}
+              />
+
+              {ticTacToe.room.status === 'COMPLETED' && (
+                <TicTacToeVictoryModal
+                  room={ticTacToe.room}
+                  player={ticTacToe.player}
+                  onRematch={ticTacToe.rematch}
+                  onLeaveRoom={handleLeaveTicTacToe}
+                  isLoading={ticTacToe.isLoading}
+                />
+              )}
+            </>
+          )}
+        </>
       )}
     </div>
   );
