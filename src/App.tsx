@@ -39,6 +39,13 @@ export default function App() {
   const paperGun = usePaperGunRealtime();
   const ticTacToe = useTicTacToeRealtime();
 
+  // Dots results popup can be closed to review the final board; re-opens on each new finish
+  const [dotsResultsOpen, setDotsResultsOpen] = useState(true);
+  const dotsStatus = dots.room?.status;
+  useEffect(() => {
+    if (dotsStatus === 'COMPLETED') setDotsResultsOpen(true);
+  }, [dotsStatus]);
+
   // If a session was restored from storage, route directly to the active match
   useEffect(() => {
     if (bingo.room && bingo.player) {
@@ -306,14 +313,16 @@ export default function App() {
                 player={dots.player}
                 onDrawLine={dots.drawLine}
                 onLeaveRoom={handleLeaveDots}
+                onShowResults={() => setDotsResultsOpen(true)}
               />
 
-              {dots.room.status === 'COMPLETED' && (
+              {dots.room.status === 'COMPLETED' && dotsResultsOpen && (
                 <DotsVictoryModal
                   room={dots.room}
                   player={dots.player}
                   onRematch={dots.rematch}
                   onLeaveRoom={handleLeaveDots}
+                  onClose={() => setDotsResultsOpen(false)}
                   isLoading={dots.isLoading}
                 />
               )}

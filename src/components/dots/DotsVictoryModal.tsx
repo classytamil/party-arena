@@ -4,7 +4,7 @@
 
 import React, { useEffect } from 'react';
 import confetti from 'canvas-confetti';
-import { Trophy, RotateCcw, Home, Sparkles } from 'lucide-react';
+import { Trophy, RotateCcw, Home, X, History } from 'lucide-react';
 import { DotsRoom, DotsPlayer, PLAYER_COLORS } from '../../types/dots';
 import { AVATAR_OPTIONS } from '../../types/bingo';
 import { playClickSound } from '../../utils/sound';
@@ -14,6 +14,7 @@ interface DotsVictoryModalProps {
   player: DotsPlayer;
   onRematch: () => void;
   onLeaveRoom: () => void;
+  onClose?: () => void;
   isLoading: boolean;
 }
 
@@ -22,6 +23,7 @@ export const DotsVictoryModal: React.FC<DotsVictoryModalProps> = ({
   player,
   onRematch,
   onLeaveRoom,
+  onClose,
   isLoading,
 }) => {
   const totalBoxes = (room.gridSize - 1) * (room.gridSize - 1);
@@ -50,8 +52,26 @@ export const DotsVictoryModal: React.FC<DotsVictoryModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200/80 p-6 sm:p-8 flex flex-col items-center text-center relative overflow-hidden animate-in zoom-in-95 duration-200">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={() => onClose?.()}
+    >
+      <div
+        className="w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200/80 p-6 sm:p-8 flex flex-col items-center text-center relative overflow-hidden animate-in zoom-in-95 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {onClose && (
+          <button
+            onClick={() => {
+              playClickSound();
+              onClose();
+            }}
+            className="absolute top-3 right-3 z-10 p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all touch-manipulation active:scale-95 duration-75 cursor-pointer"
+            title="Close and view the board"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
         {/* Glow Accent */}
         <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-48 h-48 bg-amber-400/20 rounded-full blur-3xl pointer-events-none" />
 
@@ -123,6 +143,18 @@ export const DotsVictoryModal: React.FC<DotsVictoryModalProps> = ({
         </div>
 
         {/* Action Buttons */}
+        {onClose && (
+          <button
+            onClick={() => {
+              playClickSound();
+              onClose();
+            }}
+            className="w-full mb-3 py-3 px-4 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-sm flex items-center justify-center gap-2 transition-all touch-manipulation active:scale-95 duration-75 cursor-pointer"
+          >
+            <History className="w-4 h-4 text-slate-500" />
+            <span>Review Game Moves</span>
+          </button>
+        )}
         <div className="w-full flex flex-col sm:flex-row items-center gap-3">
           <button
             onClick={() => {

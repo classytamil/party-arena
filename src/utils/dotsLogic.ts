@@ -1,7 +1,59 @@
 /**
  * Dots and Boxes Pure Mathematical & Rule Validation Logic
  */
-import { DotsGridSize } from '../types/dots';
+import { DotsGridSize, DotsMove, ClaimedBox } from '../types/dots';
+
+export interface DotsBoardSnapshot {
+  lines: Record<string, string>;
+  boxes: Record<string, ClaimedBox>;
+  lastLineId: string | null;
+  lastBoxes: BoxCoord[];
+  lastMove: DotsMove | null;
+  scores: Record<string, number>;
+}
+
+/**
+ * Rebuilds the board as it looked after the first `moveCount` moves (view-only replay).
+ */
+export function buildDotsSnapshot(
+  gridSize: DotsGridSize,
+  moves: DotsMove[],
+  moveCount: number
+): DotsBoardSnapshot {
+  const count = Math.max(0, Math.min(moveCount, moves.length));
+  const lines: Record<string, string> = {};
+  const boxes: Record<string, ClaimedBox> = {};
+  const scores: Record<string, number> = {};
+  let lastBoxes: BoxCoord[] = [];
+
+  for (let i = 0; i < count; i++) {
+    const move = moves[i];
+    const newBoxes = checkNewCompletedBoxes(move.lineId, lines, gridSize);
+    lines[move.lineId] = move.playerId;
+    for (const box of newBoxes) {
+      boxes[`${box.row}-${box.col}`] = {
+        row: box.row,
+        col: box.col,
+        ownerId: move.playerId,
+        ownerName: move.playerName,
+        ownerColorIndex: move.playerColorIndex,
+        completedMoveIndex: move.moveIndex,
+      };
+    }
+    scores[move.playerId] = (scores[move.playerId] || 0) + newBoxes.length;
+    lastBoxes = newBoxes;
+  }
+
+  const lastMove = count > 0 ? moves[count - 1] : null;
+  return {
+    lines,
+    boxes,
+    lastLineId: lastMove?.lineId ?? null,
+    lastBoxes: lastMove ? lastBoxes : [],
+    lastMove,
+    scores,
+  };
+}
 
 export interface BoxCoord {
   row: number;

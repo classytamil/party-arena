@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { DotsRoom, DotsPlayer, PLAYER_COLORS } from '../../types/dots';
+import { DotsRoom, DotsPlayer, ClaimedBox, PLAYER_COLORS } from '../../types/dots';
 import { AVATAR_OPTIONS } from '../../types/bingo';
 
 interface DotsBoardProps {
@@ -7,6 +7,14 @@ interface DotsBoardProps {
   player: DotsPlayer;
   onDrawLine: (lineId: string) => void;
   disabled?: boolean;
+  /** Optional board snapshot to render instead of the live board (move review). */
+  lines?: Record<string, string>;
+  boxes?: Record<string, ClaimedBox>;
+  /** Line + boxes of the move to highlight (defaults to the live last move). */
+  highlightLineId?: string | null;
+  highlightBoxes?: { row: number; col: number }[];
+  highlightPlayerName?: string | null;
+  isReviewing?: boolean;
 }
 
 interface DotCoord {
@@ -19,6 +27,12 @@ export const DotsBoard: React.FC<DotsBoardProps> = ({
   player,
   onDrawLine,
   disabled = false,
+  lines: linesOverride,
+  boxes: boxesOverride,
+  highlightLineId,
+  highlightBoxes,
+  highlightPlayerName,
+  isReviewing = false,
 }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const freeDragLineRef = useRef<SVGLineElement | null>(null);
@@ -30,7 +44,13 @@ export const DotsBoard: React.FC<DotsBoardProps> = ({
   const [selectedDot, setSelectedDot] = useState<DotCoord | null>(null);
 
   const gridSize = room.gridSize;
+  const lines = linesOverride ?? room.lines;
+  const boxes = boxesOverride ?? room.boxes;
+  const lastLineId = highlightLineId !== undefined ? highlightLineId : room.lastDrawnLineId;
+  const lastBoxes = highlightBoxes ?? room.lastCompletedBoxes ?? [];
+  const lastBoxKeys = new Set(lastBoxes.map((b) => `${b.row}-${b.col}`));
   const isMyTurn = room.status === 'PLAYING' && room.currentTurnPlayerId === player.id;
+  const canDraw = isMyTurn && !disabled;
   const myColor = PLAYER_COLORS[player.colorIndex % PLAYER_COLORS.length];
   const activePlayer = room.players.find((p) => p.id === room.currentTurnPlayerId);
   const activeColor = activePlayer
@@ -135,7 +155,7 @@ export const DotsBoard: React.FC<DotsBoardProps> = ({
   };
 
   const handlePointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!isMyTurn || disabled) return;
+    if (!canDraw) return;
     const coords = getSvgCoordinates(e.clientX, e.clientY);
     if (!coords) return;
     const dot = findDotNearPos(coords.x, coords.y);
@@ -159,7 +179,7 @@ export const DotsBoard: React.FC<DotsBoardProps> = ({
 
   const handlePointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
     const start = dragStartRef.current;
-    if (!start || !isMyTurn || disabled) return;
+    if (!start || !canDraw) return;
     const coords = getSvgCoordinates(e.clientX, e.clientY);
     if (!coords) return;
     const target = resolveSnapTarget(start, coords.x, coords.y);
@@ -173,7 +193,7 @@ export const DotsBoard: React.FC<DotsBoardProps> = ({
 
   const handlePointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
     const start = dragStartRef.current;
-    if (!start || !isMyTurn || disabled) {
+    if (!start || !canDraw) {
       clearDrag();
       return;
     }
@@ -190,7 +210,7 @@ export const DotsBoard: React.FC<DotsBoardProps> = ({
 
     if (target && areDotsAdjacent(start, target)) {
       const lineId = getLineIdBetween(start, target);
-      if (lineId && !room.lines[lineId]) {
+      if (lineId && !lines[lineId]) {
         onDrawLine(lineId);
         setSelectedDot(null);
       }
@@ -200,7 +220,7 @@ export const DotsBoard: React.FC<DotsBoardProps> = ({
       if (moved < step * 0.18) {
         if (selectedDot && areDotsAdjacent(selectedDot, start)) {
           const lineId = getLineIdBetween(selectedDot, start);
-          if (lineId && !room.lines[lineId]) {
+          if (lineId && !lines[lineId]) {
             onDrawLine(lineId);
             setSelectedDot(null);
           } else {
@@ -226,11 +246,53 @@ export const DotsBoard: React.FC<DotsBoardProps> = ({
   const targetLineId = dragStartDot && magneticTargetDot
     ? getLineIdBetween(dragStartDot, magneticTargetDot)
     : null;
-  const isTargetAlreadyDrawn = targetLineId ? Boolean(room.lines[targetLineId]) : false;
+  const isTargetAlreadyDrawn = targetLineId ? Boolean(lines[targetLineId]) : false;
+
+  // Geometry + colour for the highlighted (last) move
+  const lastLineOwnerId = lastLineId ? lines[lastLineId] : undefined;
+  const lastLineOwner = lastLineOwnerId
+    ? room.players.find((p) => p.id === lastLineOwnerId)
+    : undefined;
+  const lastLineColor = lastLineOwner
+    ? PLAYER_COLORS[lastLineOwner.colorIndex % PLAYER_COLORS.length]
+    : (() => {
+        const move = [...room.moves].reverse().find((m) => m.lineId === lastLineId);
+        return move ? PLAYER_COLORS[move.playerColorIndex % PLAYER_COLORS.length] : myColor;
+      })();
+  const lastLineLabel =
+    highlightPlayerName ??
+    lastLineOwner?.name ??
+    [...room.moves].reverse().find((m) => m.lineId === lastLineId)?.playerName ??
+    '';
+  const lastLineGeom = (() => {
+    if (!lastLineId || !lastLineOwnerId) return null;
+    const [type, rs, cs] = lastLineId.split('-');
+    const r = parseInt(rs, 10);
+    const c = parseInt(cs, 10);
+    if (Number.isNaN(r) || Number.isNaN(c)) return null;
+    if (type === 'h') {
+      return {
+        x1: PADDING + c * step + 4,
+        y1: PADDING + r * step,
+        x2: PADDING + (c + 1) * step - 4,
+        y2: PADDING + r * step,
+        horizontal: true,
+      };
+    }
+    return {
+      x1: PADDING + c * step,
+      y1: PADDING + r * step + 4,
+      x2: PADDING + c * step,
+      y2: PADDING + (r + 1) * step - 4,
+      horizontal: false,
+    };
+  })();
+  const labelText = lastLineLabel.slice(0, 8);
+  const labelWidth = Math.max(36, labelText.length * 7.2 + 16);
 
   return (
     <div className="w-full flex flex-col justify-center items-center py-2 select-none touch-manipulation">
-      {isMyTurn && (
+      {canDraw && (
         <div className="mb-2 text-xs font-semibold text-blue-600 bg-blue-50/90 border border-blue-200/70 px-3.5 py-1 rounded-full shadow-xs flex items-center gap-1.5">
           <span>👆 Drag from dot to adjacent dot to connect</span>
         </div>
@@ -240,7 +302,9 @@ export const DotsBoard: React.FC<DotsBoardProps> = ({
         <svg
           ref={svgRef}
           viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`}
-          className="w-full h-full touch-none overflow-visible cursor-crosshair select-none"
+          className={`w-full h-full touch-none overflow-visible select-none ${
+            canDraw ? 'cursor-crosshair' : 'cursor-default'
+          }`}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
@@ -249,12 +313,13 @@ export const DotsBoard: React.FC<DotsBoardProps> = ({
           {Array.from({ length: gridSize - 1 }, (_, r) =>
             Array.from({ length: gridSize - 1 }, (_, c) => {
               const boxKey = `${r}-${c}`;
-              const claimed = room.boxes[boxKey];
+              const claimed = boxes[boxKey];
               if (!claimed) return null;
               const x = PADDING + c * step;
               const y = PADDING + r * step;
               const color = PLAYER_COLORS[claimed.ownerColorIndex % PLAYER_COLORS.length];
               const owner = room.players.find((p) => p.id === claimed.ownerId);
+              const isFresh = lastBoxKeys.has(boxKey);
               return (
                 <g key={`box-${boxKey}`}>
                   <rect
@@ -264,10 +329,11 @@ export const DotsBoard: React.FC<DotsBoardProps> = ({
                     height={step - 8}
                     rx={Math.min(12, step * 0.12)}
                     fill={color.primary}
-                    fillOpacity={0.22}
+                    fillOpacity={isFresh ? 0.36 : 0.22}
                     stroke={color.primary}
-                    strokeWidth={2}
-                    strokeOpacity={0.4}
+                    strokeWidth={isFresh ? 3.5 : 2}
+                    strokeOpacity={isFresh ? 1 : 0.4}
+                    className={isFresh ? 'animate-pulse' : undefined}
                   />
                   <text
                     x={x + step / 2}
@@ -300,8 +366,8 @@ export const DotsBoard: React.FC<DotsBoardProps> = ({
           {Array.from({ length: gridSize }, (_, r) =>
             Array.from({ length: gridSize - 1 }, (_, c) => {
               const lineId = `h-${r}-${c}`;
-              const ownerId = room.lines[lineId];
-              if (!ownerId) return null;
+              const ownerId = lines[lineId];
+              if (!ownerId || lineId === lastLineId) return null;
               const owner = room.players.find((p) => p.id === ownerId);
               const color = owner ? PLAYER_COLORS[owner.colorIndex % PLAYER_COLORS.length] : myColor;
               return (
@@ -323,8 +389,8 @@ export const DotsBoard: React.FC<DotsBoardProps> = ({
           {Array.from({ length: gridSize - 1 }, (_, r) =>
             Array.from({ length: gridSize }, (_, c) => {
               const lineId = `v-${r}-${c}`;
-              const ownerId = room.lines[lineId];
-              if (!ownerId) return null;
+              const ownerId = lines[lineId];
+              if (!ownerId || lineId === lastLineId) return null;
               const owner = room.players.find((p) => p.id === ownerId);
               const color = owner ? PLAYER_COLORS[owner.colorIndex % PLAYER_COLORS.length] : myColor;
               return (
@@ -341,6 +407,42 @@ export const DotsBoard: React.FC<DotsBoardProps> = ({
                 />
               );
             })
+          )}
+
+          {lastLineGeom && (
+            <g key={`last-${lastLineId}`} pointerEvents="none">
+              <line
+                x1={lastLineGeom.x1}
+                y1={lastLineGeom.y1}
+                x2={lastLineGeom.x2}
+                y2={lastLineGeom.y2}
+                stroke={lastLineColor.primary}
+                strokeWidth={18}
+                strokeLinecap="round"
+                strokeOpacity={0.22}
+                className="animate-pulse"
+              />
+              <line
+                x1={lastLineGeom.x1}
+                y1={lastLineGeom.y1}
+                x2={lastLineGeom.x2}
+                y2={lastLineGeom.y2}
+                stroke={lastLineColor.primary}
+                strokeWidth={8}
+                strokeLinecap="round"
+              />
+              <line
+                x1={lastLineGeom.x1}
+                y1={lastLineGeom.y1}
+                x2={lastLineGeom.x2}
+                y2={lastLineGeom.y2}
+                stroke="#ffffff"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeOpacity={0.7}
+                strokeDasharray="4 7"
+              />
+            </g>
           )}
 
           <line
@@ -402,7 +504,7 @@ export const DotsBoard: React.FC<DotsBoardProps> = ({
                       strokeWidth={2.5}
                     />
                   )}
-                  {isAdjacent && !isMagneticTarget && isMyTurn && (
+                  {isAdjacent && !isMagneticTarget && canDraw && (
                     <circle
                       cx={cx}
                       cy={cy}
@@ -430,9 +532,53 @@ export const DotsBoard: React.FC<DotsBoardProps> = ({
               );
             })
           )}
+
+          {lastLineGeom && labelText && (() => {
+            const midX = (lastLineGeom.x1 + lastLineGeom.x2) / 2;
+            const midY = (lastLineGeom.y1 + lastLineGeom.y2) / 2;
+            const nearRightEdge = midX + labelWidth + 20 > SVG_SIZE;
+            const cx = lastLineGeom.horizontal
+              ? midX
+              : nearRightEdge
+              ? midX - labelWidth / 2 - 12
+              : midX + labelWidth / 2 + 12;
+            const cy = lastLineGeom.horizontal ? midY - 20 : midY;
+            return (
+              <g pointerEvents="none" key={`last-label-${lastLineId}`}>
+                <rect
+                  x={cx - labelWidth / 2}
+                  y={cy - 11}
+                  width={labelWidth}
+                  height={22}
+                  rx={11}
+                  fill={lastLineColor.primary}
+                  stroke="#ffffff"
+                  strokeWidth={2}
+                />
+                <text
+                  x={cx}
+                  y={cy + 1}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fontSize={12}
+                  fontWeight="800"
+                  fill="#ffffff"
+                  className="select-none"
+                >
+                  {labelText}
+                </text>
+              </g>
+            );
+          })()}
         </svg>
 
-        {!isMyTurn && room.status === 'PLAYING' && (
+        {isReviewing && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-amber-500/95 text-white text-[11px] px-3 py-1 rounded-full font-bold shadow-md flex items-center gap-1.5 whitespace-nowrap">
+            <span>⏪ Viewing a past move · Board locked</span>
+          </div>
+        )}
+
+        {!isMyTurn && room.status === 'PLAYING' && !isReviewing && (
           <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-slate-900/85 backdrop-blur-md text-white text-xs px-3.5 py-1.5 rounded-full font-medium shadow-md flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-amber-400" />
             <span>Waiting for {activePlayer?.name || 'opponent'}...</span>
