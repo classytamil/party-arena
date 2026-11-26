@@ -82,55 +82,34 @@ export function useDotsRealtime() {
     setRoom(mergedRoom);
   }, []);
 
-  const { noteVersion } = useRoomSync<DotsRoom>({
+  const { noteVersion, forceRefresh } = useRoomSync<DotsRoom>({
     roomCode: room?.code ?? null,
     playerId: player?.id ?? null,
     buildFetchUrl: (code) => `/api/dots/rooms/${encodeURIComponent(code)}`,
     onRoomSnapshot: handleStateUpdate,
   });
 
-  // Clean exit when player closes tab or unloads window
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const handleUnload = () => {
-      if (room?.code && player?.id) {
-        try {
-          fetch(`/api/dots/rooms/${encodeURIComponent(room.code)}/leave`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ playerId: player.id }),
-            keepalive: true,
-          });
-        } catch {
-          // Ignore
-        }
-      }
-    };
-
-    window.addEventListener('pagehide', handleUnload);
-    window.addEventListener('beforeunload', handleUnload);
-    return () => {
-      window.removeEventListener('pagehide', handleUnload);
-      window.removeEventListener('beforeunload', handleUnload);
-    };
-  }, [room?.code, player?.id]);
-
-  // Drive bot turns and turn-timer expirations from the client
+  // Drive bot turns and turn-timer expirations from the client (with retry if early or transient failure)
   useEffect(() => {
     if (!room || !player || room.status !== 'PLAYING') return;
     const activePlayer = room.players.find((p) => p.id === room.currentTurnPlayerId);
     if (!activePlayer) return;
 
-    let delayMs: number | null = null;
+    let initialDelayMs: number | null = null;
     if (activePlayer.isBot) {
-      delayMs = 800;
+      initialDelayMs = 800;
     } else if (room.turnDeadline) {
-      delayMs = Math.max(250, room.turnDeadline - Date.now() + 150);
+      initialDelayMs = Math.max(250, room.turnDeadline - Date.now() + 150);
     }
 
-    if (delayMs === null) return;
+    if (initialDelayMs === null) return;
 
-    const timer = setTimeout(async () => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const runTick = async () => {
+      if (cancelled) return;
+      let shouldRetry = true;
       try {
         const res = await fetch(`/api/dots/rooms/${encodeURIComponent(room.code)}/tick`, {
           method: 'POST',
@@ -138,16 +117,27 @@ export function useDotsRealtime() {
           body: JSON.stringify({ playerId: player.id }),
         });
         const data = await res.json();
+        if (cancelled) return;
         if (data.success && data.room) {
           noteVersion(data.version);
           handleStateUpdate(data.room);
+          if (data.acted) shouldRetry = false;
         }
       } catch {
-        // Ignore transient tick failure
+        // Retry below on transient network error
       }
-    }, delayMs);
 
-    return () => clearTimeout(timer);
+      if (!cancelled && shouldRetry) {
+        timer = setTimeout(runTick, 1000);
+      }
+    };
+
+    timer = setTimeout(runTick, initialDelayMs);
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, [
     room?.code,
     room?.status,
@@ -423,6 +413,10 @@ export function useDotsRealtime() {
       }
 
       // 3. Keep refs updated to prevent redundant sound playback on server sync
+      const prevRoom = room;
+      const prevPlayer = player;
+      const prevLastLine = lastLineRef.current;
+      const prevLastBoxesCount = lastBoxesCountRef.current;
       lastLineRef.current = lineId;
       lastBoxesCountRef.current = nextBoxesCount;
 
@@ -516,7 +510,12 @@ export function useDotsRealtime() {
         const data = await res.json();
         if (!res.ok || !data.success) {
           pendingLinesRef.current.delete(lineId);
+          lastLineRef.current = prevLastLine;
+          lastBoxesCountRef.current = prevLastBoxesCount;
+          setRoom(prevRoom);
+          setPlayer(prevPlayer);
           setError(data.error || 'Invalid move');
+          forceRefresh();
         } else if (data.room) {
           pendingLinesRef.current.delete(lineId);
           noteVersion(data.version);
@@ -524,10 +523,16 @@ export function useDotsRealtime() {
         }
       } catch (err) {
         pendingLinesRef.current.delete(lineId);
+        lastLineRef.current = prevLastLine;
+        lastBoxesCountRef.current = prevLastBoxesCount;
+        setRoom(prevRoom);
+        setPlayer(prevPlayer);
+        setError('Connection hiccup — syncing board...');
+        forceRefresh();
         console.error('Error making move:', err);
       }
     },
-    [room, player, noteVersion, handleStateUpdate]
+    [room, player, noteVersion, forceRefresh, handleStateUpdate]
   );
 
   const rematch = useCallback(async () => {

@@ -246,7 +246,7 @@ export async function broadcastRoomUpdate(code: string, version: number, kind: '
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 2500);
   try {
-    await fetch(`${url}/realtime/v1/api/broadcast`, {
+    const res = await fetch(`${url}/realtime/v1/api/broadcast`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -265,6 +265,9 @@ export async function broadcastRoomUpdate(code: string, version: number, kind: '
       }),
       signal: controller.signal,
     });
+    if (!res.ok) {
+      console.warn(`[realtime] broadcast failed (${res.status}) for room ${code}`);
+    }
   } catch {
     // Clients also poll as a fallback, so a dropped ping is not fatal.
   } finally {
