@@ -6,7 +6,7 @@
  * - Cache-First for static assets (fonts, images, icons, sounds)
  */
 
-const CACHE_NAME = 'party-arena-v1';
+const CACHE_NAME = 'party-arena-v2';
 
 const STATIC_PRECACHE = [
   '/',
