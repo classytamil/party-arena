@@ -42,8 +42,13 @@ export const DotsVictoryModal: React.FC<DotsVictoryModalProps> = ({
     }
   }, []);
 
-  // Sort players by score descending
-  const rankedPlayers = [...room.players].sort((a, b) => b.score - a.score);
+  // Sort winners first, then by score descending
+  const rankedPlayers = [...room.players].sort((a, b) => {
+    const aWin = room.winners.some((w) => w.id === a.id);
+    const bWin = room.winners.some((w) => w.id === b.id);
+    if (aWin !== bWin) return aWin ? -1 : 1;
+    return b.score - a.score;
+  });
   const isWinner = room.winners.some((w) => w.id === player.id);
   const isTie = room.isTie;
 

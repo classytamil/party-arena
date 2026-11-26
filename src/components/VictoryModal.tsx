@@ -1,6 +1,6 @@
 import React from 'react';
 import { Room, Player, AVATAR_OPTIONS } from '../types/bingo';
-import { Trophy, RotateCcw, Home } from 'lucide-react';
+import { Trophy, RotateCcw, Home, X, History } from 'lucide-react';
 import { playClickSound } from '../utils/sound';
 
 interface VictoryModalProps {
@@ -8,6 +8,7 @@ interface VictoryModalProps {
   player: Player;
   onRematch: () => Promise<void>;
   onLeaveRoom: () => Promise<void>;
+  onClose?: () => void;
   isLoading: boolean;
 }
 
@@ -16,19 +17,41 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
   player,
   onRematch,
   onLeaveRoom,
+  onClose,
   isLoading,
 }) => {
   const winner = room.winner || room.players[0];
   const isWinner = winner?.id === player.id;
   const winnerAvatar = AVATAR_OPTIONS.find((a) => a.id === winner?.avatar) || AVATAR_OPTIONS[0];
 
-  const rankedPlayers = [...room.players].sort(
-    (a, b) => b.completedLines.length - a.completedLines.length
-  );
+  const rankedPlayers = [...room.players].sort((a, b) => {
+    if (a.id === winner?.id) return -1;
+    if (b.id === winner?.id) return 1;
+    return b.completedLines.length - a.completedLines.length;
+  });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs select-none">
-      <div className="bg-white border border-slate-200 rounded-3xl max-w-sm w-full p-6 shadow-2xl text-center animate-pop">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs select-none"
+      onClick={() => onClose?.()}
+    >
+      <div
+        className="relative bg-white border border-slate-200 rounded-3xl max-w-sm w-full p-6 shadow-2xl text-center animate-pop"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {onClose && (
+          <button
+            type="button"
+            onClick={() => {
+              playClickSound();
+              onClose();
+            }}
+            className="absolute top-3 right-3 p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all active:scale-95 cursor-pointer"
+            title="Close and view the board"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
         {/* Trophy Badge */}
         <div className="w-16 h-16 mx-auto mb-3 rounded-2xl bg-amber-400 shadow-[0_4px_0_#d97706] flex items-center justify-center text-white">
           <Trophy className="w-8 h-8" />
@@ -78,6 +101,20 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
         </div>
 
         {/* Actions */}
+        {onClose && (
+          <button
+            type="button"
+            onClick={() => {
+              playClickSound();
+              onClose();
+            }}
+            className="w-full mb-2.5 py-3 px-4 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-display font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+          >
+            <History className="w-4 h-4 text-slate-500" />
+            <span>Review Game Moves</span>
+          </button>
+        )}
+
         <div className="flex gap-2.5">
           {player.isHost ? (
             <button

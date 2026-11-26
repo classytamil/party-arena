@@ -39,12 +39,18 @@ export default function App() {
   const paperGun = usePaperGunRealtime();
   const ticTacToe = useTicTacToeRealtime();
 
-  // Dots results popup can be closed to review the final board; re-opens on each new finish
+  // Dots & Bingo results popups can be closed to review the final board; re-open on each new finish
   const [dotsResultsOpen, setDotsResultsOpen] = useState(true);
   const dotsStatus = dots.room?.status;
   useEffect(() => {
     if (dotsStatus === 'COMPLETED') setDotsResultsOpen(true);
   }, [dotsStatus]);
+
+  const [bingoResultsOpen, setBingoResultsOpen] = useState(true);
+  const bingoStatus = bingo.room?.status;
+  useEffect(() => {
+    if (bingoStatus === 'COMPLETED') setBingoResultsOpen(true);
+  }, [bingoStatus]);
 
   // If a session was restored from storage, route directly to the active match
   useEffect(() => {
@@ -263,14 +269,16 @@ export default function App() {
                 onDrawNextNumber={bingo.drawNextNumber}
                 onLeaveRoom={handleLeaveBingo}
                 onUnIdle={bingo.unIdle}
+                onShowResults={() => setBingoResultsOpen(true)}
               />
 
-              {bingo.room.status === 'COMPLETED' && (
+              {bingo.room.status === 'COMPLETED' && bingoResultsOpen && (
                 <VictoryModal
                   room={bingo.room}
                   player={bingo.player}
                   onRematch={bingo.rematch}
                   onLeaveRoom={handleLeaveBingo}
+                  onClose={() => setBingoResultsOpen(false)}
                   isLoading={bingo.isLoading}
                 />
               )}

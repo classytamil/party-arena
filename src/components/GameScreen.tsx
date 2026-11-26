@@ -15,6 +15,12 @@ import {
   CheckCircle2,
   ArrowUpDown,
   X,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Radio,
+  Trophy,
 } from 'lucide-react';
 import { getSoundMuted, setSoundMuted, playClickSound, playDaubSound } from '../utils/sound';
 
@@ -26,6 +32,8 @@ interface GameScreenProps {
   onDrawNextNumber: () => Promise<void>;
   onLeaveRoom: () => Promise<void>;
   onUnIdle?: () => Promise<void>;
+  /** Re-open the results popup after it was closed (completed match only). */
+  onShowResults?: () => void;
 }
 
 /**
@@ -66,11 +74,60 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   onPickNumber,
   onLeaveRoom,
   onUnIdle,
+  onShowResults,
 }) => {
   const [isMuted, setIsMuted] = useState(getSoundMuted());
   const [newestFirst, setNewestFirst] = useState(true);
   const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
   const [now, setNow] = useState(Date.now());
+  // null = live board, otherwise number of calls applied in the review snapshot
+  const [viewIndex, setViewIndex] = useState<number | null>(null);
+
+  const totalCalls = room.calledNumbers.length;
+  const isCompleted = room.status === 'COMPLETED';
+  const isReviewing = viewIndex !== null && viewIndex < totalCalls;
+  const shownIndex = isReviewing ? (viewIndex as number) : totalCalls;
+
+  useEffect(() => {
+    if (viewIndex !== null && viewIndex >= totalCalls) setViewIndex(null);
+  }, [viewIndex, totalCalls]);
+
+  useEffect(() => {
+    if (room.status === 'PLAYING' && totalCalls === 0) setViewIndex(null);
+  }, [room.status, totalCalls]);
+
+  const goTo = (index: number | null) => {
+    if (index === null || index >= totalCalls) {
+      setViewIndex(null);
+      return;
+    }
+    setViewIndex(Math.max(0, index));
+  };
+  const stepBack = () => goTo(shownIndex - 1);
+  const stepForward = () => goTo(shownIndex + 1);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+      if (totalCalls === 0) return;
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        goTo(shownIndex - 1);
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        goTo(shownIndex + 1);
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        goTo(0);
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        goTo(null);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [shownIndex, totalCalls]);
 
   // 1-second ticker for accurate turn timer countdown
   useEffect(() => {
@@ -97,36 +154,45 @@ export const GameScreen: React.FC<GameScreenProps> = ({
     setSoundMuted(next);
   };
 
-  const isMyTurn = room.currentTurnPlayerId === player.id;
+  const isMyTurn = room.status === 'PLAYING' && room.currentTurnPlayerId === player.id;
+  const canPick = isMyTurn && !isReviewing;
   const currentTurnPlayer =
     room.players.find((p) => p.id === room.currentTurnPlayerId) || room.players[0];
 
-  // Effective called numbers merging server authoritative list + immediate local click
+  // Effective called numbers: snapshot slice when reviewing, or server + optimistic when live
   const effectiveCalledNumbers = useMemo(() => {
+    if (isReviewing) return room.calledNumbers.slice(0, shownIndex);
     if (localPickedNumbers.length === 0) return room.calledNumbers;
     return Array.from(new Set([...room.calledNumbers, ...localPickedNumbers]));
-  }, [room.calledNumbers, localPickedNumbers]);
+  }, [isReviewing, shownIndex, room.calledNumbers, localPickedNumbers]);
 
-  const effectiveCurrentNumber =
-    localPickedNumbers.length > 0
-      ? localPickedNumbers[localPickedNumbers.length - 1]
-      : room.currentNumber;
+  const effectiveCurrentNumber = isReviewing
+    ? shownIndex > 0
+      ? effectiveCalledNumbers[shownIndex - 1]
+      : null
+    : localPickedNumbers.length > 0
+    ? localPickedNumbers[localPickedNumbers.length - 1]
+    : room.currentNumber;
 
-  // Effective daubed card array updating in 0ms on click
+  // Effective daubed card array updating in 0ms on click (or rebuilt for review step)
   const effectiveDaubed = useMemo(() => {
+    if (isReviewing) {
+      const calledSet = new Set(effectiveCalledNumbers);
+      return player.card.map((num) => calledSet.has(num));
+    }
     const daubed = [...player.daubed];
     localPickedNumbers.forEach((num) => {
       const idx = player.card.indexOf(num);
       if (idx !== -1) daubed[idx] = true;
     });
     return daubed;
-  }, [player.daubed, player.card, localPickedNumbers]);
+  }, [isReviewing, effectiveCalledNumbers, player.daubed, player.card, localPickedNumbers]);
 
-  // Effective completed lines indices updating in 0ms on click
+  // Effective completed lines indices updating in 0ms on click (or rebuilt for review step)
   const effectiveCompletedLines = useMemo(() => {
-    if (localPickedNumbers.length === 0) return player.completedLines;
+    if (!isReviewing && localPickedNumbers.length === 0) return player.completedLines;
     return getCompletedLineIndices(effectiveDaubed);
-  }, [player.completedLines, effectiveDaubed, localPickedNumbers.length]);
+  }, [isReviewing, player.completedLines, effectiveDaubed, localPickedNumbers.length]);
 
   // Set of cell indices that belong to completed lines
   const winningCellIndices = useMemo(() => {
@@ -141,7 +207,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   }, [effectiveCompletedLines]);
 
   const handleCellClick = (num: number) => {
-    if (!isMyTurn || effectiveCalledNumbers.includes(num)) return;
+    if (!canPick || effectiveCalledNumbers.includes(num)) return;
     // 1. Instant 0ms synchronous local feedback: turns blue immediately!
     setLocalPickedNumbers((prev) => [...prev, num]);
     playDaubSound();
@@ -246,15 +312,21 @@ export const GameScreen: React.FC<GameScreenProps> = ({
             const badge = getLetterBadge(entry.number);
             const cellIdx = player.card.indexOf(entry.number);
             const isMarkedOnMyCard = cellIdx !== -1 && player.daubed[cellIdx];
-            const isLatest = room.currentNumber === entry.number;
+            const isActiveStep = entry.callOrder === shownIndex;
 
             return (
-              <div
+              <button
                 key={entry.callOrder}
-                className={`flex items-center justify-between px-3 py-2 rounded-xl border text-xs transition-all ${
-                  isLatest
-                    ? 'bg-amber-50/90 border-amber-300 shadow-2xs'
-                    : 'bg-slate-50/80 border-slate-200/70'
+                type="button"
+                onClick={() => {
+                  playClickSound();
+                  goTo(entry.callOrder);
+                  setMobileHistoryOpen(false);
+                }}
+                className={`w-full text-left flex items-center justify-between px-3 py-2 rounded-xl border text-xs transition-all cursor-pointer ${
+                  isActiveStep
+                    ? 'bg-amber-50/90 border-amber-300 ring-2 ring-amber-400/30 shadow-2xs'
+                    : 'bg-slate-50/80 border-slate-200/70 hover:bg-slate-100'
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
@@ -285,7 +357,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                     </span>
                   )}
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -311,6 +383,21 @@ export const GameScreen: React.FC<GameScreenProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {isCompleted && onShowResults && (
+            <button
+              type="button"
+              onClick={() => {
+                playClickSound();
+                onShowResults();
+              }}
+              className="flex items-center gap-1.5 px-3 h-9 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-700 text-xs font-bold shadow-2xs transition-all active:scale-95 cursor-pointer"
+              title="Show Results"
+            >
+              <Trophy className="w-3.5 h-3.5" />
+              <span>Results</span>
+            </button>
+          )}
+
           {/* Mobile Call History Drawer Toggle */}
           <button
             type="button"
@@ -397,43 +484,63 @@ export const GameScreen: React.FC<GameScreenProps> = ({
           </div>
 
           {/* Turn Status, 20s Countdown & Last Called Pill */}
-          <div className="flex items-center justify-between px-4 py-2.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs">
-            <div className="flex items-center gap-2">
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  isMyTurn ? 'bg-blue-600 animate-ping' : 'bg-amber-500'
-                }`}
-              />
-              <span className="font-display font-bold text-xs sm:text-sm text-slate-800">
-                {isMyTurn
-                  ? 'Your turn — tap any number'
-                  : `${currentTurnPlayer?.name}'s turn...`}
-              </span>
-              {secondsLeft !== null && (
-                <span
-                  className={`px-2 py-0.5 rounded-lg font-mono font-extrabold text-xs transition-colors ${
-                    secondsLeft <= 5
-                      ? 'bg-rose-100 text-rose-700 animate-pulse border border-rose-300'
-                      : 'bg-amber-50 text-amber-700 border border-amber-200'
-                  }`}
-                  title="Turn time remaining"
-                >
-                  ⏱️ {secondsLeft}s
+          {isCompleted ? (
+            <div className="flex items-center justify-between px-4 py-2.5 rounded-2xl bg-amber-50/90 border border-amber-300 shadow-2xs">
+              <div className="flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-amber-500 shrink-0" />
+                <span className="font-display font-bold text-xs sm:text-sm text-slate-900">
+                  {room.winner?.id === player.id
+                    ? 'You won! · Final board locked'
+                    : `${room.winner?.name || 'Opponent'} won · Final board locked`}
+                </span>
+              </div>
+              {effectiveCurrentNumber && (
+                <span className="px-2 py-0.5 rounded-lg bg-slate-900 text-white font-mono font-extrabold text-xs">
+                  #{effectiveCurrentNumber}
                 </span>
               )}
             </div>
-
-            {effectiveCurrentNumber ? (
-              <div className="flex items-center gap-1.5 text-xs">
-                <span className="text-slate-400">Last:</span>
-                <span className="px-2 py-0.5 rounded-lg bg-slate-900 text-white font-mono font-extrabold text-xs">
-                  {effectiveCurrentNumber}
+          ) : (
+            <div className="flex items-center justify-between px-4 py-2.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs">
+              <div className="flex items-center gap-2">
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    isMyTurn ? 'bg-blue-600 animate-ping' : 'bg-amber-500'
+                  }`}
+                />
+                <span className="font-display font-bold text-xs sm:text-sm text-slate-800">
+                  {isMyTurn
+                    ? isReviewing
+                      ? 'Go back to live to pick'
+                      : 'Your turn — tap any number'
+                    : `${currentTurnPlayer?.name}'s turn...`}
                 </span>
+                {secondsLeft !== null && (
+                  <span
+                    className={`px-2 py-0.5 rounded-lg font-mono font-extrabold text-xs transition-colors ${
+                      secondsLeft <= 5
+                        ? 'bg-rose-100 text-rose-700 animate-pulse border border-rose-300'
+                        : 'bg-amber-50 text-amber-700 border border-amber-200'
+                    }`}
+                    title="Turn time remaining"
+                  >
+                    ⏱️ {secondsLeft}s
+                  </span>
+                )}
               </div>
-            ) : (
-              <span className="text-xs text-slate-400 font-mono">0/25 called</span>
-            )}
-          </div>
+
+              {effectiveCurrentNumber ? (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="text-slate-400">Last:</span>
+                  <span className="px-2 py-0.5 rounded-lg bg-slate-900 text-white font-mono font-extrabold text-xs">
+                    {effectiveCurrentNumber}
+                  </span>
+                </div>
+              ) : (
+                <span className="text-xs text-slate-400 font-mono">0/25 called</span>
+              )}
+            </div>
+          )}
 
           {/* Idle notice & resume button if current player is idle */}
           {player.isIdle && (
@@ -487,14 +594,14 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                   const isCalled = effectiveCalledNumbers.includes(num);
                   const isPartWinningLine = winningCellIndices.has(idx);
                   const isLastCalled = effectiveCurrentNumber === num;
-                  const canPickThis = isMyTurn && !isCalled;
+                  const canPickThis = canPick && !isCalled;
 
                   return (
                     <button
                       key={idx}
                       type="button"
                       onClick={() => handleCellClick(num)}
-                      disabled={isCalled || !isMyTurn}
+                      disabled={isCalled || !canPick}
                       className={`aspect-square rounded-2xl flex flex-col items-center justify-center font-display font-black relative select-none touch-manipulation transition-transform duration-75 ${
                         isCalled
                           ? isPartWinningLine
@@ -544,6 +651,93 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                 </svg>
               )}
             </div>
+
+            {isReviewing && (
+              <div className="mt-3 text-center">
+                <span className="inline-flex items-center gap-1.5 bg-amber-500 text-white text-[11px] font-bold px-3 py-1 rounded-full">
+                  ⏪ Viewing past call #{shownIndex} · Board locked
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Call / Move Navigator (chess-style, view only) */}
+          <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xs p-2.5 flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => goTo(0)}
+                  disabled={totalCalls === 0 || shownIndex === 0}
+                  className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-35 disabled:cursor-not-allowed transition-all active:scale-95 cursor-pointer"
+                  title="First call (Home)"
+                >
+                  <ChevronsLeft className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={stepBack}
+                  disabled={totalCalls === 0 || shownIndex === 0}
+                  className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-35 disabled:cursor-not-allowed transition-all active:scale-95 cursor-pointer"
+                  title="Previous call (←)"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex-1 min-w-0 text-center">
+                <div className="text-xs font-bold text-slate-800 tabular-nums">
+                  {totalCalls === 0 ? 'No calls yet' : `Call ${shownIndex} / ${totalCalls}`}
+                </div>
+                {shownIndex > 0 && effectiveCurrentNumber !== null ? (
+                  <div className="text-[11px] text-slate-500 font-medium truncate">
+                    Number #{effectiveCurrentNumber}
+                    {room.callHistory?.[shownIndex - 1]?.callerName
+                      ? ` · ${room.callHistory[shownIndex - 1].callerName}`
+                      : ''}
+                  </div>
+                ) : (
+                  totalCalls > 0 && (
+                    <div className="text-[11px] text-slate-500 font-medium">Starting board</div>
+                  )
+                )}
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={stepForward}
+                  disabled={!isReviewing}
+                  className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-35 disabled:cursor-not-allowed transition-all active:scale-95 cursor-pointer"
+                  title="Next call (→)"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => goTo(null)}
+                  disabled={!isReviewing}
+                  className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-35 disabled:cursor-not-allowed transition-all active:scale-95 cursor-pointer"
+                  title="Latest call (End)"
+                >
+                  <ChevronsRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {isReviewing && (
+              <button
+                type="button"
+                onClick={() => {
+                  playClickSound();
+                  goTo(null);
+                }}
+                className="w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+              >
+                <Radio className="w-3.5 h-3.5" />
+                <span>{isCompleted ? 'Jump to final board' : 'Back to live game'}</span>
+              </button>
+            )}
           </div>
         </div>
 
