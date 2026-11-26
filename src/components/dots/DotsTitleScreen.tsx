@@ -17,6 +17,7 @@ import {
 import { AVATAR_OPTIONS } from '../../types/bingo';
 import { GRID_OPTIONS, DotsGridSize } from '../../types/dots';
 import { getSoundMuted, setSoundMuted, playClickSound } from '../../utils/sound';
+import { ThemeToggle } from '../ThemeToggle';
 
 interface DotsTitleScreenProps {
   onCreateRoom: (playerName: string, avatar: string, gridSize: DotsGridSize, timerSeconds?: number) => void;
@@ -126,6 +127,7 @@ export const DotsTitleScreen: React.FC<DotsTitleScreenProps> = ({
         </button>
 
         <div className="flex items-center gap-2">
+          <ThemeToggle className="w-9 h-9 p-0 flex items-center justify-center" />
           <button
             type="button"
             onClick={handleToggleMute}

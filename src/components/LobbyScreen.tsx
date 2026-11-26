@@ -12,6 +12,7 @@ import {
   Share2,
 } from 'lucide-react';
 import { getSoundMuted, setSoundMuted, playClickSound } from '../utils/sound';
+import { ThemeToggle } from './ThemeToggle';
 
 interface LobbyScreenProps {
   room: Room;
@@ -85,14 +86,17 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
           Waiting Lobby
         </span>
 
-        <button
-          type="button"
-          onClick={handleToggleMute}
-          aria-label={isMuted ? 'Unmute Sound' : 'Mute Sound'}
-          className="w-9 h-9 rounded-xl bg-white hover:bg-slate-100 border border-slate-200/80 text-slate-600 flex items-center justify-center shadow-xs transition-all active:scale-95"
-        >
-          {isMuted ? <VolumeX className="w-4 h-4 text-rose-500" /> : <Volume2 className="w-4 h-4 text-slate-700" />}
-        </button>
+        <div className="flex items-center gap-2">
+          <ThemeToggle className="w-9 h-9 p-0 flex items-center justify-center" />
+          <button
+            type="button"
+            onClick={handleToggleMute}
+            aria-label={isMuted ? 'Unmute Sound' : 'Mute Sound'}
+            className="w-9 h-9 rounded-xl bg-white hover:bg-slate-100 border border-slate-200/80 text-slate-600 flex items-center justify-center shadow-xs transition-all active:scale-95"
+          >
+            {isMuted ? <VolumeX className="w-4 h-4 text-rose-500" /> : <Volume2 className="w-4 h-4 text-slate-700" />}
+          </button>
+        </div>
       </header>
 
       {/* Main Single-Column Lobby Card */}

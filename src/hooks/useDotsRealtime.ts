@@ -164,7 +164,7 @@ export function useDotsRealtime() {
               if (data.success && data.room) {
                 const me = data.room.players.find((p: DotsPlayer) => p.id === playerId);
                 if (me) {
-                  noteVersion(data.version);
+                  noteVersion(data.version, false);
                   lastBoxesCountRef.current = Object.keys(data.room.boxes).length;
                   lastLineRef.current = data.room.lastDrawnLineId;
                   prevStatusRef.current = data.room.status;

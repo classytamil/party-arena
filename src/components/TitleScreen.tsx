@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { AVATAR_OPTIONS } from '../types/bingo';
 import { Volume2, VolumeX, HelpCircle, Users, Bot, ArrowRight, Shuffle } from 'lucide-react';
 import { getSoundMuted, setSoundMuted, playClickSound } from '../utils/sound';
+import { ThemeToggle } from './ThemeToggle';
 
 interface TitleScreenProps {
   onCreateRoom: (hostName: string, hostAvatar: string, maxPlayers: number) => Promise<boolean>;
@@ -122,6 +123,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
         )}
 
         <div className="flex items-center gap-2 ml-auto">
+          <ThemeToggle className="w-9 h-9 p-0 flex items-center justify-center" />
           <button
             type="button"
             onClick={handleToggleMute}

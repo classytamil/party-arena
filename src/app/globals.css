@@ -114,6 +114,26 @@ html.dark .bg-rose-50 {
   background-color: rgba(244, 63, 94, 0.14);
 }
 
+/* Paper Gun Battle dark blueprint mode */
+html.dark .bg-\[\#fffdf9\] {
+  background-color: #0f172a;
+}
+html.dark .border-slate-900,
+html.dark .border-slate-800,
+html.dark .border-slate-700\/80,
+html.dark .border-slate-700\/75 {
+  border-color: #475569;
+}
+html.dark svg [stroke="#0f172a"] {
+  stroke: #e2e8f0;
+}
+html.dark svg [fill="#0f172a"] {
+  fill: #e2e8f0;
+}
+html.dark svg rect[fill="#f8fafc"] {
+  fill: #1e293b;
+}
+
 .font-display {
   font-family: var(--font-display);
 }

@@ -1,12 +1,16 @@
 /**
- * Shared client-side room synchronization hook.
+ * Shared client-side room synchronization hook (WebSocket-first, zero polling when connected).
  *
  * Uses:
- *  1. A Supabase Realtime Broadcast subscription on `room-<code>` that receives
- *     instant `room_changed` pings from the server after every mutation and
- *     triggers a sanitized GET fetch for this viewer (with automatic reconnect).
- *  2. A lightweight polling fallback, plus `visibilitychange`, `focus`, and `online`
- *     refreshes, with a per-request timeout so a stalled fetch can never freeze sync.
+ *  1. A persistent Supabase Realtime WebSocket channel (`room-<code>`).
+ *     - When this client commits a mutation (`noteVersion(v)`), it broadcasts
+ *       directly over its open WebSocket (`channel.send`) so peers receive updates
+ *       in ~50–150ms without waiting for a server-side REST broadcast.
+ *     - Server-side `after()` broadcasts act as a backup for joins/leaves.
+ *  2. Zero `setInterval` polling while the WebSocket is `SUBSCRIBED`. Polling
+ *     only activates if the WebSocket drops (`CHANNEL_ERROR` / `TIMED_OUT` / `CLOSED`)
+ *     or Realtime isn't configured, and stops immediately once reconnected.
+ *  3. `visibilitychange`, `focus`, and `online` catch-up refreshes + auto-reconnect.
  */
 
 import { useEffect, useRef, useCallback } from 'react';
@@ -16,7 +20,6 @@ import { getBrowserSupabase } from '@/lib/supabaseBrowser';
 const FETCH_TIMEOUT_MS = 5000;
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 10000;
-const CONNECTED_POLL_INTERVAL_MS = 4000;
 
 interface UseRoomSyncOptions<TRoom> {
   roomCode: string | null;
@@ -24,7 +27,7 @@ interface UseRoomSyncOptions<TRoom> {
   /** Endpoint that returns `{ success: true, room, version? }` for this viewer. */
   buildFetchUrl: (code: string, playerId: string) => string;
   onRoomSnapshot: (room: TRoom) => void;
-  /** Poll interval in ms (faster fallback if Realtime isn't configured). */
+  /** Fallback poll interval (ms) used ONLY while WebSocket is disconnected. */
   pollIntervalMs?: number;
 }
 
@@ -33,7 +36,7 @@ export function useRoomSync<TRoom>({
   playerId,
   buildFetchUrl,
   onRoomSnapshot,
-  pollIntervalMs = 750,
+  pollIntervalMs = 1000,
 }: UseRoomSyncOptions<TRoom>) {
   const onSnapshotRef = useRef(onRoomSnapshot);
   onSnapshotRef.current = onRoomSnapshot;
@@ -44,12 +47,14 @@ export function useRoomSync<TRoom>({
   const lastVersionRef = useRef<number>(-1);
   const inFlightRef = useRef<boolean>(false);
   const pendingRef = useRef<boolean>(false);
-  const lastFetchAtRef = useRef<number>(0);
   const activeKeyRef = useRef<string | null>(null);
   const roomCodeRef = useRef<string | null>(roomCode);
   const playerIdRef = useRef<string | null>(playerId);
   roomCodeRef.current = roomCode;
   playerIdRef.current = playerId;
+
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const isSubscribedRef = useRef<boolean>(false);
 
   const fetchLatest = useCallback(
     async (code: string, pid: string, minVersion?: number, force = false) => {
@@ -62,7 +67,6 @@ export function useRoomSync<TRoom>({
       }
 
       inFlightRef.current = true;
-      lastFetchAtRef.current = Date.now();
       const controller = new AbortController();
       const timeoutId = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
@@ -82,7 +86,7 @@ export function useRoomSync<TRoom>({
           onSnapshotRef.current(data.room as TRoom);
         }
       } catch {
-        // Ignore transient network errors or timeouts; next broadcast or poll will retry.
+        // Ignore transient network errors or timeouts; next broadcast or reconnect will retry.
       } finally {
         window.clearTimeout(timeoutId);
         inFlightRef.current = false;
@@ -95,10 +99,25 @@ export function useRoomSync<TRoom>({
     []
   );
 
-  /** Allow callers to record the version received from a POST response so we don't re-fetch it. */
-  const noteVersion = useCallback((version?: number) => {
+  /**
+   * Record the server version returned by a mutation and push an instant
+   * WebSocket broadcast directly to peers over the open Realtime channel.
+   */
+  const noteVersion = useCallback((version?: number, broadcast = true) => {
     if (typeof version === 'number' && version > lastVersionRef.current) {
       lastVersionRef.current = version;
+      if (
+        broadcast &&
+        isSubscribedRef.current &&
+        channelRef.current &&
+        roomCodeRef.current
+      ) {
+        void channelRef.current.send({
+          type: 'broadcast',
+          event: 'room_changed',
+          payload: { code: roomCodeRef.current, version, kind: 'updated' },
+        });
+      }
     }
   }, []);
 
@@ -115,6 +134,8 @@ export function useRoomSync<TRoom>({
     lastVersionRef.current = -1;
     inFlightRef.current = false;
     pendingRef.current = false;
+    isSubscribedRef.current = false;
+    channelRef.current = null;
 
     if (!roomCode || !playerId) {
       activeKeyRef.current = null;
@@ -126,10 +147,9 @@ export function useRoomSync<TRoom>({
 
     let cancelled = false;
     const supabase = getBrowserSupabase();
-    let channel: RealtimeChannel | null = null;
     let reconnectTimer: number | null = null;
+    let fallbackPollTimer: number | null = null;
     let reconnectAttempts = 0;
-    let isSubscribed = false;
 
     const clearReconnectTimer = () => {
       if (reconnectTimer !== null) {
@@ -138,13 +158,35 @@ export function useRoomSync<TRoom>({
       }
     };
 
+    const startFallbackPolling = () => {
+      if (cancelled || fallbackPollTimer !== null) return;
+      fallbackPollTimer = window.setInterval(() => {
+        if (!cancelled && document.visibilityState === 'visible') {
+          void fetchLatest(roomCode, playerId);
+        }
+      }, pollIntervalMs);
+    };
+
+    const stopFallbackPolling = () => {
+      if (fallbackPollTimer !== null) {
+        window.clearInterval(fallbackPollTimer);
+        fallbackPollTimer = null;
+      }
+    };
+
     const subscribeChannel = () => {
-      if (cancelled || !supabase) return;
+      if (cancelled) return;
+      if (!supabase) {
+        startFallbackPolling();
+        return;
+      }
+
       clearReconnectTimer();
 
-      if (channel) {
-        const old = channel;
-        channel = null;
+      if (channelRef.current) {
+        const old = channelRef.current;
+        channelRef.current = null;
+        isSubscribedRef.current = false;
         void supabase.removeChannel(old);
       }
 
@@ -159,15 +201,17 @@ export function useRoomSync<TRoom>({
         .subscribe((status) => {
           if (cancelled) return;
           if (status === 'SUBSCRIBED') {
-            isSubscribed = true;
+            isSubscribedRef.current = true;
             reconnectAttempts = 0;
+            stopFallbackPolling();
             void fetchLatest(roomCode, playerId);
           } else if (
             status === 'CHANNEL_ERROR' ||
             status === 'TIMED_OUT' ||
             status === 'CLOSED'
           ) {
-            isSubscribed = false;
+            isSubscribedRef.current = false;
+            startFallbackPolling();
             if (reconnectTimer === null) {
               const delay = Math.min(
                 RECONNECT_MAX_MS,
@@ -182,25 +226,17 @@ export function useRoomSync<TRoom>({
           }
         });
 
-      channel = nextChannel;
+      channelRef.current = nextChannel;
     };
 
     void fetchLatest(roomCode, playerId);
     subscribeChannel();
 
-    const interval = window.setInterval(() => {
-      if (cancelled || document.visibilityState !== 'visible') return;
-      const targetInterval = isSubscribed ? CONNECTED_POLL_INTERVAL_MS : pollIntervalMs;
-      if (Date.now() - lastFetchAtRef.current >= targetInterval) {
-        void fetchLatest(roomCode, playerId);
-      }
-    }, pollIntervalMs);
-
     const onResume = () => {
       if (cancelled) return;
       if (document.visibilityState === 'visible') {
         void fetchLatest(roomCode, playerId);
-        if (supabase && (!channel || channel.state !== 'joined')) {
+        if (supabase && (!channelRef.current || !isSubscribedRef.current)) {
           reconnectAttempts = 0;
           subscribeChannel();
         }
@@ -225,14 +261,15 @@ export function useRoomSync<TRoom>({
       activeKeyRef.current = null;
       inFlightRef.current = false;
       pendingRef.current = false;
+      isSubscribedRef.current = false;
       clearReconnectTimer();
-      window.clearInterval(interval);
+      stopFallbackPolling();
       document.removeEventListener('visibilitychange', onResume);
       window.removeEventListener('focus', onResume);
       window.removeEventListener('online', onOnline);
-      if (channel && supabase) {
-        const toRemove = channel;
-        channel = null;
+      if (channelRef.current && supabase) {
+        const toRemove = channelRef.current;
+        channelRef.current = null;
         void supabase.removeChannel(toRemove);
       }
     };

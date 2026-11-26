@@ -269,7 +269,7 @@ export function useBingoRealtime(): UseBingoRealtimeReturn {
         .then((r) => r.json())
         .then((data) => {
           if (data.success && data.room && data.player) {
-            noteVersion(data.version);
+            noteVersion(data.version, false);
             prevLineCountRef.current = data.player.completedLines?.length || 0;
             prevCalledCountRef.current = data.room.calledNumbers?.length || 0;
             setPlayer(data.player);

@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bot, Plus, LogIn, ArrowLeft, HelpCircle, Crosshair } from 'lucide-react';
 import { playClickSound } from '../../utils/sound';
+import { ThemeToggle } from '../ThemeToggle';
 
 interface PaperGunTitleScreenProps {
   onCreateRoom: (playerName: string, avatar: string) => Promise<void>;
@@ -100,17 +101,20 @@ export const PaperGunTitleScreen: React.FC<PaperGunTitleScreenProps> = ({
             </span>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              playClickSound();
-              setShowHowToPlay(true);
-            }}
-            className="p-2 rounded-xl border-2 border-slate-900 bg-white hover:bg-amber-100 text-slate-900 shadow-[2px_2px_0px_#0f172a] transition-all cursor-pointer"
-            title="How to Play"
-          >
-            <HelpCircle className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <ThemeToggle className="p-2 rounded-xl border-2 border-slate-900 shadow-[2px_2px_0px_#0f172a]" />
+            <button
+              type="button"
+              onClick={() => {
+                playClickSound();
+                setShowHowToPlay(true);
+              }}
+              className="p-2 rounded-xl border-2 border-slate-900 bg-white hover:bg-amber-100 text-slate-900 shadow-[2px_2px_0px_#0f172a] transition-all cursor-pointer"
+              title="How to Play"
+            >
+              <HelpCircle className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </header>
 

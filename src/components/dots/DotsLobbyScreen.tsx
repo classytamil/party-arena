@@ -26,6 +26,7 @@ import {
 } from '../../types/dots';
 import { AVATAR_OPTIONS } from '../../types/bingo';
 import { getSoundMuted, setSoundMuted, playClickSound } from '../../utils/sound';
+import { ThemeToggle } from '../ThemeToggle';
 
 interface DotsLobbyScreenProps {
   room: DotsRoom;
@@ -94,7 +95,8 @@ export const DotsLobbyScreen: React.FC<DotsLobbyScreenProps> = ({
           <span>Leave Room</span>
         </button>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
           <button
             onClick={handleToggleMute}
             className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-all shadow-xs"

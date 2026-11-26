@@ -174,7 +174,7 @@ export function usePaperGunRealtime() {
             .then((r) => r.json())
             .then((data) => {
               if (data.success && data.room && data.player) {
-                noteVersion(data.version);
+                noteVersion(data.version, false);
                 prevStatusRef.current = data.room.status;
                 setRoom(data.room);
                 setPlayer(data.player);

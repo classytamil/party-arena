@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { PaperGunRoom, PaperGunPlayer } from '../../types/paperGun';
 import { Copy, Check, Play, Bot, ArrowLeft } from 'lucide-react';
 import { playClickSound } from '../../utils/sound';
+import { ThemeToggle } from '../ThemeToggle';
 
 interface PaperGunLobbyScreenProps {
   room: PaperGunRoom;
@@ -81,7 +82,7 @@ export const PaperGunLobbyScreen: React.FC<PaperGunLobbyScreenProps> = ({
 
           <span className="text-sm font-black text-slate-900">Duel Notebook Lobby</span>
 
-          <div className="w-16" />
+          <ThemeToggle className="p-2 rounded-xl border-2 border-slate-900 shadow-[2px_2px_0px_#0f172a]" />
         </div>
       </header>
 
