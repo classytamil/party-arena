@@ -16,6 +16,7 @@ import {
 } from '../../types/paperGun';
 import { canPlayerShoot } from '../../utils/paperGunLogic';
 import { PaperSketchpad } from './PaperSketchpad';
+import { ThemeToggle } from '../ThemeToggle';
 import {
   Volume2,
   VolumeX,
@@ -165,6 +166,7 @@ export const PaperGunGameScreen: React.FC<PaperGunGameScreenProps> = ({
           <span className="hidden sm:inline-block font-mono text-xs font-black text-slate-800 bg-white px-2.5 py-1 rounded-xl border-2 border-slate-900 shadow-[2px_2px_0px_#0f172a]">
             #{room.code}
           </span>
+          <ThemeToggle className="p-1.5 rounded-xl border-2 border-slate-900 shadow-[2px_2px_0px_#0f172a]" />
           <button
             type="button"
             onClick={handleToggleMute}

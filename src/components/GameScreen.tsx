@@ -23,6 +23,7 @@ import {
   Trophy,
 } from 'lucide-react';
 import { getSoundMuted, setSoundMuted, playClickSound, playDaubSound } from '../utils/sound';
+import { ThemeToggle } from './ThemeToggle';
 
 
 interface GameScreenProps {
@@ -410,6 +411,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({
             <History className="w-3.5 h-3.5 text-blue-600" />
             <span className="font-mono">{room.calledNumbers.length}/25</span>
           </button>
+
+          <ThemeToggle className="w-9 h-9 p-0 flex items-center justify-center" />
 
           <button
             type="button"

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
   :root {
@@ -14,6 +15,103 @@
     -webkit-user-select: none;
     overflow-x: hidden;
   }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  html.dark body {
+    background-color: #0b1120;
+    color: #f1f5f9;
+  }
+}
+
+/* Global Dark Mode Surface & Text Overrides across all games & modals */
+html.dark .bg-\[\#f8fafc\] {
+  background-color: #0b1120;
+}
+html.dark .bg-white {
+  background-color: #111827;
+}
+html.dark .bg-white\/90 {
+  background-color: rgba(17, 24, 39, 0.9);
+}
+html.dark .bg-white\/80,
+html.dark .bg-white\/70 {
+  background-color: rgba(17, 24, 39, 0.78);
+}
+html.dark .bg-slate-50 {
+  background-color: #1e293b;
+}
+html.dark .bg-slate-50\/80,
+html.dark .bg-slate-50\/50 {
+  background-color: rgba(30, 41, 59, 0.7);
+}
+html.dark .bg-slate-100 {
+  background-color: #1f2937;
+}
+html.dark .hover\:bg-slate-50:hover {
+  background-color: #1e293b;
+}
+html.dark .hover\:bg-slate-100:hover {
+  background-color: #334155;
+}
+html.dark .hover\:bg-slate-200:hover,
+html.dark .hover\:bg-slate-200\/80:hover {
+  background-color: #334155;
+}
+
+html.dark .text-slate-900,
+html.dark .text-slate-950 {
+  color: #f8fafc;
+}
+html.dark .text-slate-800 {
+  color: #e2e8f0;
+}
+html.dark .text-slate-700 {
+  color: #cbd5e1;
+}
+html.dark .text-slate-600 {
+  color: #94a3b8;
+}
+html.dark .text-slate-500 {
+  color: #94a3b8;
+}
+html.dark .text-slate-400 {
+  color: #64748b;
+}
+
+html.dark .border-slate-200,
+html.dark .border-slate-200\/90,
+html.dark .border-slate-200\/80,
+html.dark .border-slate-200\/70,
+html.dark .border-slate-200\/60 {
+  border-color: #1f2937;
+}
+html.dark .border-slate-100 {
+  border-color: #1e293b;
+}
+html.dark .shadow-slate-200\/60 {
+  --tw-shadow-color: rgba(2, 6, 23, 0.65);
+}
+
+/* Soft tinted surfaces in dark mode */
+html.dark .bg-blue-50,
+html.dark .bg-blue-50\/80,
+html.dark .bg-blue-50\/90 {
+  background-color: rgba(37, 99, 235, 0.16);
+}
+html.dark .bg-amber-50,
+html.dark .bg-amber-50\/90,
+html.dark .bg-amber-50\/80,
+html.dark .bg-amber-50\/50 {
+  background-color: rgba(245, 158, 11, 0.14);
+}
+html.dark .bg-emerald-50 {
+  background-color: rgba(16, 185, 129, 0.14);
+}
+html.dark .bg-rose-50 {
+  background-color: rgba(244, 63, 94, 0.14);
 }
 
 .font-display {

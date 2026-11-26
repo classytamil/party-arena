@@ -521,6 +521,9 @@ export const DotsBoard: React.FC<DotsBoardProps> = ({
                     cy={cy}
                     r={isDragSource || isMagneticTarget ? 8.5 : gridSize >= 6 ? 6.5 : 7.5}
                     fill={isDragSource || isMagneticTarget ? activeColor.primary : '#1e293b'}
+                    className={
+                      isDragSource || isMagneticTarget ? undefined : 'dark:fill-slate-200'
+                    }
                   />
                   <circle
                     cx={cx - 1.5}

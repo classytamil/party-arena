@@ -11,6 +11,7 @@
  */
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { after } from 'next/server';
 
 export type GameType = 'bingo' | 'dots' | 'papergun' | 'tictactoe';
 
@@ -193,7 +194,7 @@ export async function mutateRoom<T>(
         .select('code');
       if (error) throw new GameError(500, `Database error: ${error.message}`);
       if (data && data.length > 0) {
-        await broadcastRoomUpdate(code, current.version + 1, 'deleted');
+        scheduleBroadcast(code, current.version + 1, 'deleted');
         return { record: null, deleted: true, changed: true };
       }
       continue; // version conflict -> retry
@@ -210,7 +211,7 @@ export async function mutateRoom<T>(
     if (error) throw new GameError(500, `Database error: ${error.message}`);
     if (data && data.length > 0) {
       const saved = toRecord<T>(data[0] as RoomRow);
-      await broadcastRoomUpdate(code, saved.version, 'updated');
+      scheduleBroadcast(code, saved.version, 'updated');
       return { record: saved, deleted: false, changed: true };
     }
 
@@ -232,6 +233,20 @@ export async function purgeStaleRooms(): Promise<void> {
 /** Realtime topic used for a room. Must match the client (src/hooks/useRoomSync.ts). */
 export function roomTopic(code: string): string {
   return `room-${code}`;
+}
+
+/**
+ * Schedules a non-blocking Realtime broadcast using Next.js `after()` so the
+ * HTTP response returns immediately after the DB write while keeping the
+ * serverless invocation alive until the broadcast completes.
+ */
+function scheduleBroadcast(code: string, version: number, kind: 'updated' | 'deleted') {
+  try {
+    after(() => broadcastRoomUpdate(code, version, kind));
+  } catch {
+    // Fallback if called outside a Next.js request lifecycle
+    void broadcastRoomUpdate(code, version, kind);
+  }
 }
 
 /**

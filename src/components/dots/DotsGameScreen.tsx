@@ -22,6 +22,7 @@ import { AVATAR_OPTIONS } from '../../types/bingo';
 import { DotsBoard } from './DotsBoard';
 import { buildDotsSnapshot } from '../../utils/dotsLogic';
 import { getSoundMuted, setSoundMuted, playClickSound } from '../../utils/sound';
+import { ThemeToggle } from '../ThemeToggle';
 
 interface DotsGameScreenProps {
   room: DotsRoom;
@@ -210,6 +211,7 @@ export const DotsGameScreen: React.FC<DotsGameScreenProps> = ({
               <History className="w-4 h-4" />
               <span className="hidden md:inline">Moves</span>
             </button>
+            <ThemeToggle />
             <button
               onClick={handleToggleMute}
               className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-all shadow-xs touch-manipulation active:scale-95 duration-75 cursor-pointer"

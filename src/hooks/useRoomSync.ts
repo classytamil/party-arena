@@ -16,6 +16,7 @@ import { getBrowserSupabase } from '@/lib/supabaseBrowser';
 const FETCH_TIMEOUT_MS = 5000;
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 10000;
+const CONNECTED_POLL_INTERVAL_MS = 4000;
 
 interface UseRoomSyncOptions<TRoom> {
   roomCode: string | null;
@@ -43,6 +44,7 @@ export function useRoomSync<TRoom>({
   const lastVersionRef = useRef<number>(-1);
   const inFlightRef = useRef<boolean>(false);
   const pendingRef = useRef<boolean>(false);
+  const lastFetchAtRef = useRef<number>(0);
   const activeKeyRef = useRef<string | null>(null);
   const roomCodeRef = useRef<string | null>(roomCode);
   const playerIdRef = useRef<string | null>(playerId);
@@ -60,6 +62,7 @@ export function useRoomSync<TRoom>({
       }
 
       inFlightRef.current = true;
+      lastFetchAtRef.current = Date.now();
       const controller = new AbortController();
       const timeoutId = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
@@ -126,6 +129,7 @@ export function useRoomSync<TRoom>({
     let channel: RealtimeChannel | null = null;
     let reconnectTimer: number | null = null;
     let reconnectAttempts = 0;
+    let isSubscribed = false;
 
     const clearReconnectTimer = () => {
       if (reconnectTimer !== null) {
@@ -155,6 +159,7 @@ export function useRoomSync<TRoom>({
         .subscribe((status) => {
           if (cancelled) return;
           if (status === 'SUBSCRIBED') {
+            isSubscribed = true;
             reconnectAttempts = 0;
             void fetchLatest(roomCode, playerId);
           } else if (
@@ -162,6 +167,7 @@ export function useRoomSync<TRoom>({
             status === 'TIMED_OUT' ||
             status === 'CLOSED'
           ) {
+            isSubscribed = false;
             if (reconnectTimer === null) {
               const delay = Math.min(
                 RECONNECT_MAX_MS,
@@ -183,7 +189,9 @@ export function useRoomSync<TRoom>({
     subscribeChannel();
 
     const interval = window.setInterval(() => {
-      if (!cancelled && document.visibilityState === 'visible') {
+      if (cancelled || document.visibilityState !== 'visible') return;
+      const targetInterval = isSubscribed ? CONNECTED_POLL_INTERVAL_MS : pollIntervalMs;
+      if (Date.now() - lastFetchAtRef.current >= targetInterval) {
         void fetchLatest(roomCode, playerId);
       }
     }, pollIntervalMs);

@@ -16,6 +16,7 @@ import {
 import { TicTacToeRoom, TicTacToePlayer } from '../../types/ticTacToe';
 import { AVATAR_OPTIONS } from '../../types/bingo';
 import { getSoundMuted, setSoundMuted, playClickSound, playDaubSound } from '../../utils/sound';
+import { ThemeToggle } from '../ThemeToggle';
 
 interface TicTacToeGameScreenProps {
   room: TicTacToeRoom;
@@ -89,6 +90,7 @@ export const TicTacToeGameScreen: React.FC<TicTacToeGameScreenProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <ThemeToggle className="p-2" />
             <button
               onClick={handleToggleMute}
               className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-all active:scale-95 cursor-pointer shadow-xs"

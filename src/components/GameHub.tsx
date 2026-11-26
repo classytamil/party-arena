@@ -8,6 +8,7 @@ import { Volume2, VolumeX, ArrowRight, User, Hash, Sparkles, Download } from 'lu
 import { AVATAR_OPTIONS } from '../types/bingo';
 import { getSoundMuted, setSoundMuted, playClickSound } from '../utils/sound';
 import { usePwaInstall } from '../hooks/usePwaInstall';
+import { ThemeToggle } from './ThemeToggle';
 
 interface GameHubProps {
   onOpenBingoLanding: () => void;
@@ -123,6 +124,9 @@ export const GameHub: React.FC<GameHubProps> = ({
                 {playerName}
               </span>
             </button>
+
+            {/* Theme Toggle */}
+            <ThemeToggle />
 
             {/* Sound Toggle */}
             <button
